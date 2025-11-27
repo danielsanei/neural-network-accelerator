@@ -1,37 +1,40 @@
-// special function processor (accumulation + ReLU)
-    // testbench will call SFU 9 times in sequence for 3x3 convolution
-module sfu(
+// Special Function Unit (SFU)
+// Performs accumulation and ReLU operations
+// Created for ECE284 Project Part 1
+
+module sfu #(
+    parameter psum_bw = 16
+) (
     input clk,
     input reset,
-    input acc,                          // accumulator enable signal
-    input [psum_bw-1:0] psum_in,        // partial sum input
-    output reg [psum_bw-1:0] sfp_out    // acc + ReLU output
+    input acc,                         // accumulation enable signal
+    input [psum_bw-1:0] psum_in,       // partial sum input from psum memory
+    output reg [psum_bw-1:0] sfp_out   // final output after acc + ReLU
 );
-
-    // define hardware components
-    parameter psum_bw = 16;
-    reg [psum_bw-1:0] accumulator;
-    wire [psum_bw-1:0] relu_out;
-
-    // accumulation (sum the input partial sums)
+    
+    // hardware components (2's complement)
+    reg signed [psum_bw-1:0] accumulator;
+    wire signed [psum_bw-1:0] relu_out;
+    
+    // take sum + ReLU of partial sums
     always @(posedge clk) begin
-        
         // reset signal
         if (reset) begin
             accumulator <= 0;
             sfp_out <= 0;
-        end else if (acc) begin
-            // accumulate next psum
+        end
+        // accumulate (add current psum to running total)
+        else if (acc) begin
             accumulator <= accumulator + psum_in;
-        end else begin
-            // finished partial sums for current 3x3 output pixel
-            sfp_out <= relu_out;    // apply ReLU
-            accumulator <= 0;       // clear accumulator
+        end
+        // apply ReLU, reset accumulator for next set
+        else begin
+            sfp_out <= relu_out;
+            accumulator <= 0;
         end
     end
-
-    // apply ReLu
-        // if MSB=1 (2's complement), then negative number
+    
+    // ReLU: if negative (MSB=1 in 2's complement), output 0
     assign relu_out = accumulator[psum_bw-1] ? 0 : accumulator;
 
 endmodule
