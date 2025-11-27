@@ -1,0 +1,4 @@
+# ignore homework directories
+# use '/' prefix = root-level directories only
+/software/
+/hardware/
