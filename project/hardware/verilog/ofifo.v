@@ -23,7 +23,7 @@ module ofifo (clk, in, out, rd, wr, o_full, reset, o_ready, o_valid);
 
   assign o_ready = ~(&full);	// not all columns full (at least 1 has room)
   assign o_full  = |full;	// at least 1 column is full
-  assign o_valid = ~(|empty);	// at least one full vector is ready (not all empty)
+  assign o_valid = ~(|empty);	// at least one full vector is ready (not all empty)
 
   for (i=0; i<col ; i=i+1) begin : col_num
       fifo_depth64 #(.bw(bw)) fifo_instance (
