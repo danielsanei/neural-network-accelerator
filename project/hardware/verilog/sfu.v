@@ -2,14 +2,20 @@
 // Performs accumulation and ReLU operations
 // Created for ECE284 Project Part 1
 
+// TODO --> NEEDS CORRECTION
+// currently, sfu.v only processes 1 single output channel out of the 1, 2, ... 8 lanes from MAC array output
+// where each of these output channels performs 3x3 convolution
+// so only doing accumulate + ReLU for a single output channel, but there are 7 other output channels
+// need to wrap current code in a loop to process all output channels, each output channel must produce its own PSUM
+
 module sfu #(
     parameter psum_bw = 16
 ) (
     input clk,
     input reset,
-    input acc,                         // accumulation enable signal
-    input [psum_bw-1:0] psum_in,       // partial sum input from psum memory
-    output reg [psum_bw-1:0] sfp_out   // final output after acc + ReLU
+    input acc,                              // accumulation enable signal
+    input signed [psum_bw-1:0] psum_in,     // partial sum input from psum memory
+    output reg [psum_bw-1:0] sfp_out        // final output after acc + ReLU
 );
     
     // hardware components (2's complement)
