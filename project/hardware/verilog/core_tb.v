@@ -199,13 +199,25 @@ initial begin
 
 
     /////// Kernel data writing to L0 ///////
-    ...
+    for (t=0; t<col; t=t+1) begin
+    	#0.5 clk = 1'b0; CEN_xmem = 0; WEN_xmem = 1; A_xmem = 11'b10000000000 + t[10:0]; l0_wr = 1;
+	#0.5 clk = 1'b1;
+    end
+
+    #0.5 clk = 1'b0; l0_wr = 0; CEN_xmem = 1; WEN_xmem = 1;
+    #0.5 clk = 1'b1;
     /////////////////////////////////////
 
 
 
     /////// Kernel loading to PEs ///////
-    ...
+    for (t=0; t<len_kij; t=t+1) begin
+    	#0.5 clk = 1'b0; load = 1; l0_rd = 1;
+	#0.5 clk = 1'b1;
+    end
+
+    #0.5 clk = 1'b0; load = 0; l0_rd = 0;
+    #0.5 clk = 1'b1;
     /////////////////////////////////////
   
 
@@ -224,13 +236,26 @@ initial begin
 
 
     /////// Activation data writing to L0 ///////
-    ...
+    A_xmem = 11'b00000000000;
+    for (t=0; t<len_nij; t=t+1) begin
+    	#0.5 clk = 1'b0; CEN_xmem = 0; WEN_xmem = 1; l0_wr = 1;
+	#0.5 clk = 1'b1; A_xmem = A_xmem + 1;
+    end
+
+    #0.5 clk = 1'b0; l0_wr = 0; CEN_xmem = 1; WEN_xmem = 1;
+    #0.5 clk = 1'b1;
     /////////////////////////////////////
 
 
 
     /////// Execution ///////
-    ...
+    for (t=0; t<len_onij; t=t+1) begin
+    	#0.5 clk = 1'b0; execute = 1; l0_rd = 1;
+	#0.5 clk = 1'b1;
+    end
+
+    #0.5 clk = 1'b0; execute = 0; l0_rd = 0;
+    #0.5 clk = 1'b1;
     /////////////////////////////////////
 
 
@@ -238,7 +263,13 @@ initial begin
     //////// OFIFO READ ////////
     // Ideally, OFIFO should be read while execution, but we have enough ofifo
     // depth so we can fetch out after execution.
-    ...
+    for (t=0; t<len_onij; t=t+1) begin
+    	#0.5 clk = 1'b0; ofifo_rd = 1;
+	#0.5 clk = 1'b1;
+    end
+
+    #0.5 clk = 1'b0; ofifo_rd = 0;
+    #0.5 clk = 1'b1;
     /////////////////////////////////////
 
 
@@ -247,6 +278,9 @@ initial begin
 
   ////////// Accumulation /////////
   out_file = $fopen("out.txt", "r");  
+
+  acc_file = $fopen("acc.txt", "r");
+
 
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 

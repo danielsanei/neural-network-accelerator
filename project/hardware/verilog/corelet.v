@@ -47,10 +47,6 @@ module corelet #(
     wire [psum_bw*col-1:0] ofifo_out;
     wire ofifo_full;
     wire ofifo_ready;
-    wire ofifo_wr;
-
-    // enable write for OFIFO
-    assign ofifo_wr = |mac_valid;
 
     // -------------------------------------------------------------------------
     // L0 FIFO
@@ -103,7 +99,7 @@ module corelet #(
     ) ofifo_inst (
         .clk (clk),
         .reset (reset),
-        .wr (ofifo_wr), 
+        .wr (mac_valid), 
         .rd (ofifo_rd),
         .in (mac_out),
         .out (ofifo_out),

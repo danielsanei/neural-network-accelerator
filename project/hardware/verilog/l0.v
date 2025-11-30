@@ -37,13 +37,13 @@ module l0 (clk, in, out, rd, wr, o_full, reset, o_ready);
          .reset(reset));
   end
 
-
+/*
   always @ (posedge clk) begin
    if (reset) begin
       rd_en <= 8'b00000000;
    end
    else begin
-
+*/
       /////////////// version1: read all row at a time ////////////////
       /*
       if (rd) begin   		 // read request signal
@@ -70,7 +70,7 @@ module l0 (clk, in, out, rd, wr, o_full, reset, o_ready);
        end
             
       ///////////////////////////////////////////////////////
-   end
+  /* end
   end
-
+*/
 endmodule
