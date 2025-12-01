@@ -224,12 +224,25 @@ initial begin
       #0.5 clk = 1'b1;
     end
 
-    // turn off L0
+    // iteration v3
+    // load in 0x407
+    #0.5 clk = 1'b0;
+    l0_wr = 1;
+    CEN_xmem = 1; // turn off SRAM but get its last output
+    #0.5 clk = 1'b1;
+
+    // full l0 off
     #0.5 clk = 1'b0;
     l0_wr = 0;
-    CEN_xmem = 1;
-    WEN_xmem = 1;
     #0.5 clk = 1'b1;
+
+    // itervation v2
+    // // turn off L0
+    // #0.5 clk = 1'b0;
+    // l0_wr = 0;
+    // CEN_xmem = 1;
+    // WEN_xmem = 1;
+    // #0.5 clk = 1'b1;
 
   //   for (t=0; t<col; t=t+1) begin
   //   	#0.5 clk = 1'b0; CEN_xmem = 0; WEN_xmem = 1; A_xmem = 11'b10000000000 + t[10:0]; l0_wr = 1;
