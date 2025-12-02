@@ -322,7 +322,7 @@ initial begin
 
 
     /////// Execution ///////
-    for (t=0; t<row*len_nij; t=t+1) begin
+    for (t=0; t<row*len_nij + 10; t=t+1) begin
     	#0.5 clk = 1'b0; execute = 1; l0_rd = 1;
 	#0.5 clk = 1'b1;
     end
@@ -341,18 +341,18 @@ initial begin
 	// #0.5 clk = 1'b1;
   //   end
 
-    t=0;
-    while (t < len_onij) begin
-      #0.5 clk = 1'b0;
-      if (ofifo_valid) begin
-        ofifo_rd = 1;
-        t = t + 1;
-      end
-      else begin
-        ofifo_rd = 0;
-      end
-      #0.5 clk = 1'b1;
-    end
+    // t=0;
+    // while (t < len_onij) begin
+    //   #0.5 clk = 1'b0;
+    //   if (ofifo_valid) begin
+    //     ofifo_rd = 1;
+    //     t = t + 1;
+    //   end
+    //   else begin
+    //     ofifo_rd = 0;
+    //   end
+    //   #0.5 clk = 1'b1;
+    // end
 
     #0.5 clk = 1'b0; ofifo_rd = 0;
     #0.5 clk = 1'b1;
@@ -381,25 +381,63 @@ initial begin
   error = 0;
 
 
-
+  // drive ofifo, sfu, alongside answer checking to not lose data
   $display("############ Verification Start during accumulation #############"); 
+
+
 
   for (i=0; i<len_onij+1; i=i+1) begin 
 
-    #0.5 clk = 1'b0; 
+    // reset per output
+    #0.5 clk = 1'b0; reset = 1; acc = 0; ofifo_rd = 0;
     #0.5 clk = 1'b1; 
+    #0.5 clk = 1'b0; reset = 0;
+    #0.5 clk = 1'b1; 
+    
+    for (i=0; i <len_onij; i=i+1) begin
+      for (j=0; j<len_kij; j=j+1) begin // accum 9 per output
+        #0.5 clk = 1'b0;
+        // control accum
+        if (j < len_kij - 1) // one cycle short cutoff
+          acc = 1;
+        else
+          acc = 0;
 
-    if (i>0) begin
-     out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
-       if (sfp_out == answer)
-         $display("%2d-th output featuremap Data matched! :D", i); 
-       else begin
-         $display("%2d-th output featuremap Data ERROR!!", i); 
-         $display("sfpout: %128b", sfp_out);
-         $display("answer: %128b", answer);
-         error = 1;
-       end
+        // read from ofifo to feed sfu
+        ofifo_rd = 1;
+
+        if (j<len_kij) begin CEN_pmem = 0; WEN_pmem = 1; acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); end
+        else  begin CEN_pmem = 1; WEN_pmem = 1; end
+
+        #0.5 clk = 1'b1;
+      end
+
+      #0.5 clk = 1'b0; ofifo_rd = 0; #0.5 clk = 1'b1; // safe cycle
+
+      out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
+      if (sfp_out == answer)
+          $display("%2d-th output featuremap Data matched! :D", i); 
+      else begin
+        $display("%2d-th output featuremap Data ERROR!!", i); 
+        $display("sfpout: %128b", sfp_out);
+        $display("answer: %128b", answer);
+        error = 1;
+      end
+
     end
+    
+
+    // if (i>0) begin
+    //  out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
+    //    if (sfp_out == answer)
+    //      $display("%2d-th output featuremap Data matched! :D", i); 
+    //    else begin
+    //      $display("%2d-th output featuremap Data ERROR!!", i); 
+    //      $display("sfpout: %128b", sfp_out);
+    //      $display("answer: %128b", answer);
+    //      error = 1;
+    //    end
+    // end
    
  
     #0.5 clk = 1'b0; reset = 1;
