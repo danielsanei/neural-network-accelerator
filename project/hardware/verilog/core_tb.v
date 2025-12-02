@@ -165,7 +165,7 @@ initial begin
     w_scan_file = $fscanf(w_file,"%s", captured_data);
     w_scan_file = $fscanf(w_file,"%s", captured_data);
 
-    #0.5 clk = 1'b0;   reset = 1;
+    #0.5 clk = 1'b0;   //reset = 1;
     #0.5 clk = 1'b1; 
 
     for (i=0; i<10 ; i=i+1) begin
@@ -173,7 +173,7 @@ initial begin
       #0.5 clk = 1'b1;  
     end
 
-    #0.5 clk = 1'b0;   reset = 0;
+    #0.5 clk = 1'b0;   //reset = 0;
     #0.5 clk = 1'b1; 
 
     #0.5 clk = 1'b0;   
@@ -322,7 +322,7 @@ initial begin
 
 
     /////// Execution ///////
-    for (t=0; t<row*len_nij + 10; t=t+1) begin
+    for (t=0; t<(row+col)*len_nij + 10; t=t+1) begin
     	#0.5 clk = 1'b0; execute = 1; l0_rd = 1;
 	#0.5 clk = 1'b1;
     end
