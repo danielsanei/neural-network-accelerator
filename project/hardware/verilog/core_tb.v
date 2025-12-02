@@ -254,9 +254,9 @@ initial begin
 
 
     /////// Kernel loading to PEs ///////
-    for (t=0; t<len_kij; t=t+1) begin
-    	#0.5 clk = 1'b0; load = 1; l0_rd = 1;
-	#0.5 clk = 1'b1;
+    for (t=0; t<8*len_kij; t=t+1) begin
+      #0.5 clk = 1'b0; load = 1; l0_rd = 1;
+      #0.5 clk = 1'b1;
     end
 
     #0.5 clk = 1'b0; load = 0; l0_rd = 0;
