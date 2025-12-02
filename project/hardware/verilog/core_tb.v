@@ -217,9 +217,7 @@ initial begin
       // prep addrs
       if (t<col-1) begin
         A_xmem = A_xmem + 1;
-      end else begin
-        CEN_xmem = 1; // turn sram off once all KERNEL addrs read
-      end
+      end 
 
       #0.5 clk = 1'b1;
     end
@@ -245,7 +243,7 @@ initial begin
     // #0.5 clk = 1'b1;
 
   //   for (t=0; t<col; t=t+1) begin
-  //   	#0.5 clk = 1'b0; CEN_xmem = 0; WEN_xmem = 1; A_xmem = 11'b10000000000 + t[10:0]; l0_wr = 1;
+  //   	#0.5 clk = 1'b0 CEN_xmem = 0; WEN_xmem = 1; A_xmem = 11'b10000000000 + t[10:0]; l0_wr = 1;
 	// #0.5 clk = 1'b1;
   //   end
 
