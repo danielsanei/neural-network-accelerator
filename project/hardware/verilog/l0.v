@@ -19,16 +19,17 @@ module l0 (clk, in, out, rd, wr, o_full, reset, o_ready);
   reg [row-1:0] rd_en;
   
   genvar i;
-
-  assign o_ready = ~(&full);	// room to write a new vector
+ 
   assign o_full  = |full;	// at least 1 row is full
+  assign o_ready = ~(o_full);	// room to write a new vector, if at least one not full
+
 
   // instantiate 8 FIFO rows
   for (i=0; i<row ; i=i+1) begin : row_num
       fifo_depth64 #(.bw(bw)) fifo_instance (
 	 .rd_clk(clk),
 	 .wr_clk(clk),
-	 .rd(rd_en[i]),
+	 .rd(rd & rd_en[i]),
 	 .wr(wr),
          .o_empty(empty[i]),
          .o_full(full[i]),
