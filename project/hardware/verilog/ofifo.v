@@ -25,18 +25,20 @@ module ofifo (clk, in, out, rd, wr, o_full, reset, o_ready, o_valid);
   assign o_full  = |full;	// at least 1 column is full
   assign o_valid = ~(|empty);	// at least one full vector is ready (not all empty)
 
-  for (i=0; i<col ; i=i+1) begin : col_num
-      fifo_depth64 #(.bw(bw)) fifo_instance (
-	 .rd_clk(clk),
-	 .wr_clk(clk),
-	 .rd(rd_en),
-	 .wr(wr[i]),		// each col has its own write enable
-         .o_empty(empty[i]),
-         .o_full(full[i]),
-	 .in(in[bw*(i+1)-1:bw*i]),
-	 .out(out[bw*(i+1)-1:bw*i]),
-         .reset(reset));
-  end
+  generate     // wrap in generate block
+    for (i=0; i<col ; i=i+1) begin : col_num
+        fifo_depth64 #(.bw(bw)) fifo_instance (
+    .rd_clk(clk),
+    .wr_clk(clk),
+    .rd(rd_en),
+    .wr(wr[i]),		// each col has its own write enable
+          .o_empty(empty[i]),
+          .o_full(full[i]),
+    .in(in[bw*(i+1)-1:bw*i]),
+    .out(out[bw*(i+1)-1:bw*i]),
+          .reset(reset));
+    end
+  endgenerate
 
 
   always @ (posedge clk) begin

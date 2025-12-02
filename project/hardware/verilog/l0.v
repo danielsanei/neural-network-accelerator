@@ -23,20 +23,21 @@ module l0 (clk, in, out, rd, wr, o_full, reset, o_ready);
   assign o_full  = |full;	// at least 1 row is full
   assign o_ready = ~(o_full);	// room to write a new vector, if at least one not full
 
-
   // instantiate 8 FIFO rows
-  for (i=0; i<row ; i=i+1) begin : row_num
-      fifo_depth64 #(.bw(bw)) fifo_instance (
-	 .rd_clk(clk),
-	 .wr_clk(clk),
-	 .rd(rd & rd_en[i]),
-	 .wr(wr),
-         .o_empty(empty[i]),
-         .o_full(full[i]),
-	 .in(in[bw*(i+1)-1 : bw*i]),	// high bit index = bw*(i+1)-1
-	 .out(out[bw*(i+1)-1 : bw*i]),	// low bit index = bw*i
-         .reset(reset));
-  end
+  generate     // wrap in generate block
+    for (i=0; i<row ; i=i+1) begin : row_num
+        fifo_depth64 #(.bw(bw)) fifo_instance (
+    .rd_clk(clk),
+    .wr_clk(clk),
+    .rd(rd & rd_en[i]),
+    .wr(wr),
+          .o_empty(empty[i]),
+          .o_full(full[i]),
+    .in(in[bw*(i+1)-1 : bw*i]),	// high bit index = bw*(i+1)-1
+    .out(out[bw*(i+1)-1 : bw*i]),	// low bit index = bw*i
+          .reset(reset));
+    end
+  endgenerate
 
 /*
   always @ (posedge clk) begin
