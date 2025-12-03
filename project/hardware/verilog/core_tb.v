@@ -165,7 +165,7 @@ initial begin
     w_scan_file = $fscanf(w_file,"%s", captured_data);
     w_scan_file = $fscanf(w_file,"%s", captured_data);
 
-    #0.5 clk = 1'b0;   //reset = 1;
+    #0.5 clk = 1'b0;   reset = 1;
     #0.5 clk = 1'b1; 
 
     for (i=0; i<10 ; i=i+1) begin
@@ -173,7 +173,7 @@ initial begin
       #0.5 clk = 1'b1;  
     end
 
-    #0.5 clk = 1'b0;   //reset = 0;
+    #0.5 clk = 1'b0;   reset = 0;
     #0.5 clk = 1'b1; 
 
     #0.5 clk = 1'b0;   
@@ -333,28 +333,28 @@ initial begin
 
 
 
-    //////// OFIFO READ ////////
-    // Ideally, OFIFO should be read while execution, but we have enough ofifo
-    // depth so we can fetch out after execution.
-  //   for (t=0; t<len_onij; t=t+1) begin
-  //   	#0.5 clk = 1'b0; ofifo_rd = 1;
-	// #0.5 clk = 1'b1;
-  //   end
+  //   ////// OFIFO READ ////////
+  //   Ideally, OFIFO should be read while execution, but we have enough ofifo
+  //   depth so we can fetch out after execution.
+  // read out to and accum in sfu 16 times
+    // wait 1 clk cycle for valid out
+    #0.5 clk = 1'b0;
+    ofifo_rd = 1;
+    #0.5 clk = 1'b1;
+    t=0;
+    while (t < len_onij) begin
+      #0.5 clk = 1'b0; ofifo_rd = 0;
+      if (ofifo_valid) begin
+        ofifo_rd = 1; acc = 1;
+        t = t + 1;
+      end
+      else begin
+        ofifo_rd = 0;
+      end
+      #0.5 clk = 1'b1;
+    end
 
-    // t=0;
-    // while (t < len_onij) begin
-    //   #0.5 clk = 1'b0;
-    //   if (ofifo_valid) begin
-    //     ofifo_rd = 1;
-    //     t = t + 1;
-    //   end
-    //   else begin
-    //     ofifo_rd = 0;
-    //   end
-    //   #0.5 clk = 1'b1;
-    // end
-
-    #0.5 clk = 1'b0; ofifo_rd = 0;
+    #0.5 clk = 1'b0; ofifo_rd = 0; acc = 0;
     #0.5 clk = 1'b1;
     /////////////////////////////////////
 
@@ -386,7 +386,7 @@ initial begin
 
 
 
-  for (i=0; i<len_onij+1; i=i+1) begin 
+  for (i=0; i<len_onij; i=i+1) begin 
     // assert read accumulate
     wait(ofifo_valid);
 
@@ -414,6 +414,8 @@ initial begin
       $display("%2d-th output featuremap Data ERROR!!", i); 
       $display("sfpout: %128b", sfp_out);
       $display("answer: %128b", answer);
+      $display("sfpout: %d", sfp_out);
+      $display("answer: %d", answer);
       error = 1;
     end
 

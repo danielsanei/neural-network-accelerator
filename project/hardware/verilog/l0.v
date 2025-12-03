@@ -21,7 +21,7 @@ module l0 (clk, in, out, rd, wr, o_full, reset, o_ready);
   genvar i;
  
   assign o_full  = |full;	// at least 1 row is full
-  assign o_ready = ~(o_full);	// room to write a new vector, if at least one not full
+  assign o_ready = ~(&full);	// room to write a new vector, if at least one not full
 
   // instantiate 8 FIFO rows
   generate     // wrap in generate block
