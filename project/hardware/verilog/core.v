@@ -51,6 +51,9 @@ module core #(
     // --------------------------------------------------------------------------
     //  - performs computation: L0 FIFO --> MAC Array --> OFIFO --> SFU
     // --------------------------------------------------------------------------
+    
+    wire [psum_bw*col-1:0] pmem_din;
+    
     corelet #(
         .bw (bw),
         .psum_bw (psum_bw),
@@ -61,7 +64,11 @@ module core #(
         .reset (reset),
         .inst (inst),                   // bundled instructions from testbench
         .D_xmem (xmem_q),               // write data from testbench into xmem
-        .sfp_out (sfp_out),             // accumulate + ReLU result
+       
+	.pmem_q (pmem_q),
+ 	.pmem_din (pmem_din),	
+
+	.sfp_out (sfp_out),             // accumulate + ReLU result
         .ofifo_valid (ofifo_valid)
     );
 
@@ -83,7 +90,7 @@ module core #(
             // if write enabled this cycle
             if (!WEN_pmem) begin
                 // store current SFU results
-                pmem[A_pmem] <= sfp_out;
+                pmem[A_pmem] <= pmem_din;
             end
             // otherwise, read enabled this cycle
             else begin
