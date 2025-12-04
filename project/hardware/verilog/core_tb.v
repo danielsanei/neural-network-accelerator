@@ -342,12 +342,16 @@ initial begin
   //   depth so we can fetch out after execution.
   // read out to and accum in sfu 16 times
     // wait 1 clk cycle for valid out
+    // #0.5 clk = 1'b0;
+    // acc = 0;
+    // ofifo_rd = 1;
+    // #0.5 clk = 1'b1;
     #0.5 clk = 1'b0;
     acc = 0;
     ofifo_rd = 1;
     #0.5 clk = 1'b1;
     t=0;
-    while (t < len_onij + 2) begin // 2 cycle delay
+    while (t < len_onij) begin // 2 cycle delay
       #0.5 clk = 1'b0; 
       if (ofifo_valid) begin
         ofifo_rd = 1; acc = 1;
@@ -360,7 +364,7 @@ initial begin
       #0.5 clk = 1'b1;
     end
 
-    #0.5 clk = 1'b0; ofifo_rd = 0; acc = 0;
+    #0.5 clk = 1'b0; ofifo_rd = 0; acc = 0; #0.5 clk = 1'b1;
     
     /////////////////////////////////////
 
