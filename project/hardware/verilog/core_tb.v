@@ -15,7 +15,7 @@ parameter len_nij = 36;
 reg clk = 0;
 reg reset = 1;
 
-wire [33:0] inst_q; 
+wire [34:0] inst_q; 
 
 reg [1:0]  inst_w_q = 0; 
 reg [bw*row-1:0] D_xmem_q = 0;
@@ -40,6 +40,8 @@ reg execute_q = 0;
 reg load_q = 0;
 reg acc_q = 0;
 reg acc = 0;
+reg bypass = 0;
+reg bypass_q = 0;
 
 reg [1:0]  inst_w; 
 reg [bw*row-1:0] D_xmem;
@@ -66,6 +68,7 @@ integer captured_data;
 integer t, i, j, k, kij;
 integer error;
 
+assign inst_q[34] = bypass_q;
 assign inst_q[33] = acc_q;
 assign inst_q[32] = CEN_pmem_q;
 assign inst_q[31] = WEN_pmem_q;
@@ -328,7 +331,7 @@ initial begin
     /////// Execution /////// ~36 cycles
     for (t=0; t<row+col+len_nij; t=t+1) begin // stream inputs in (pipeline) + row+col (prop across array)
     	#0.5 clk = 1'b0; execute = 1; l0_rd = 1;
-	#0.5 clk = 1'b1;
+	    #0.5 clk = 1'b1;
     end
 
     #0.5 clk = 1'b0; execute = 0; l0_rd = 0;
@@ -346,35 +349,50 @@ initial begin
     // acc = 0;
     // ofifo_rd = 1;
     // #0.5 clk = 1'b1;
+    $display("\n===== PMEM Storage =====");
     #0.5 clk = 1'b0;
-    acc = 0;
-    ofifo_rd = 1;
+    acc = 0;                  // don't accumulate yet
+    ofifo_rd = 1;             // read next PSUM, output to psum_in for SFU
+    // CEN_pmem = 0;             // enable PMEM
+    // WEN_pmem = 0;             // enable write on PMEM
+    A_pmem = kij * len_onij;  // get starting address (i.e. kij=0 -> 0, kij=1 -> 16, kij=2 -> 32, etc.)
+    bypass = 1;               // avoid acc + ReLU, just store raw PSUM result
     #0.5 clk = 1'b1;
     t=0;
     while (t < len_onij) begin // 2 cycle delay
       #0.5 clk = 1'b0; 
       if (ofifo_valid) begin
-        ofifo_rd = 1; acc = 1;
+        ofifo_rd = 1;   // acc = 1;
+        CEN_pmem = 0;   // enable PMEM
+        WEN_pmem = 0;   // enable write on PMEM
+        if ( t > 0 ) A_pmem = A_pmem + 1;
         t = t + 1;
+        if (ofifo_valid && CEN_pmem == 0) begin
+        $display("[KIJ=%0d, t=%0d] Writing to PMEM[%0d], sfp_out=%h", 
+                kij, t, A_pmem, sfp_out);
+        end
       end
       else begin
         ofifo_rd = 0;
-        acc = 0;
+        CEN_pmem = 1;
+        WEN_pmem = 1;
+        // acc = 0;
       end
       #0.5 clk = 1'b1;
     end
 
-    #0.5 clk = 1'b0; ofifo_rd = 0; acc = 0; #0.5 clk = 1'b1;
-    
+    #0.5 clk = 1'b0;
+    ofifo_rd = 0;
+    acc = 0;
+    CEN_pmem = 1;     // disable PMEM
+    WEN_pmem = 1;     // disable write on PMEM
+    bypass = 0;       // remove bypass signal
+    #0.5 clk = 1'b1;
+
     /////////////////////////////////////
 
-
-
-
-
-
-
   end  // end of kij loop
+
 
 
   ////////// Accumulation /////////
@@ -392,7 +410,7 @@ initial begin
 
 
   // drive ofifo, sfu, alongside answer checking to not lose data
-  $display("############ Verification Start during accumulation #############"); 
+  $display("############ Verification Start during accumulation #############");
 
 
 
@@ -497,6 +515,7 @@ always @ (posedge clk) begin
    l0_wr_q    <= l0_wr ;
    execute_q  <= execute;
    load_q     <= load;
+   bypass_q   <= bypass;
 end
 
 

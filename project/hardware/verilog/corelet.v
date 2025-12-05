@@ -9,13 +9,14 @@ module corelet #(
 ) (
     input clk,
     input reset,
-    input [33:0] inst,                  // bundled instructions from testbench
+    input [34:0] inst,                  // bundled instructions from testbench
     input [bw*row-1:0] D_xmem,          // write data from testbench into xmem
     output [psum_bw*col-1:0] sfp_out,   // accumulate + ReLU result
     output ofifo_valid
 );
 
     // extract individual instructions
+    wire bypass = inst[34];
     wire acc = inst[33];        // SFU accumulator (1 = continue acc, 0 = ReLU + clear acc)
     // inst[32:20] : pmem controls (core.v)
     // inst[19:7] : xmem controls (core.v)
@@ -119,6 +120,7 @@ module corelet #(
     ) sfu_inst (
         .clk (clk),
         .reset (reset),
+        .bypass (bypass),
         .acc (acc),
         .psum_in (ofifo_out),
         .sfp_out (sfp_out)

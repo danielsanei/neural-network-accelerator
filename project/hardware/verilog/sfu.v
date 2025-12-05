@@ -7,6 +7,7 @@ module sfu #(
 ) (
     input clk,
     input reset,
+    input bypass,                               // bypass signal for storing PSUMs from OFIFO -> PMEM
     input acc,                                  // accumulation enable signal
     input signed [psum_bw*col-1:0] psum_in,     // PSUM inputs from OFIFO
     output reg [psum_bw*col-1:0] sfp_out        // final output after acc + ReLU
@@ -44,7 +45,13 @@ module sfu #(
         end
         // accumulate (add current psum to running total)
 	    else begin
-            if (acc) begin
+            // bypass (storing PSUMs from OFIFO into PMEM)
+            if (bypass) begin
+                for (i=0; i < col; i = i +1) begin
+                    sfp_out[psum_bw*i +: psum_bw] <= next_sum[i];
+                end
+            end
+            else if (acc) begin
                 for (i = 0; i < col; i = i + 1) begin
                     accumulator[i] <= next_sum[i];
                 end
