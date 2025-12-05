@@ -61,6 +61,7 @@ module core #(
         .reset (reset),
         .inst (inst),                   // bundled instructions from testbench
         .D_xmem (xmem_q),               // write data from testbench into xmem
+        .D_pmem (pmem_q),               // read PSUMs from PMEM to SFU
         .sfp_out (sfp_out),             // accumulate + ReLU result
         .ofifo_valid (ofifo_valid)
     );

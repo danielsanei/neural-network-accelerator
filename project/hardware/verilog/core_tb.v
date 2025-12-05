@@ -400,12 +400,9 @@ initial begin
   end  // end of kij loop
 
 
-
   ////////// Accumulation /////////
   out_file = $fopen("out.txt", "r");  
-
   acc_file = $fopen("acc.txt", "r");
-
 
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 
@@ -415,31 +412,38 @@ initial begin
   error = 0;
 
 
+
   // drive ofifo, sfu, alongside answer checking to not lose data
   $display("############ Verification Start during accumulation #############");
 
 
-
+  // for each 16 output position
   for (i=0; i<len_onij; i=i+1) begin 
-    // assert read accumulate
-    wait(ofifo_valid);
 
+    // read + accumulate 9 PSUMs (1 from each kij iteration
+    for (j = 0; j < len_kij; j = j + 1) begin
+      #0.5 clk = 1'b0;
+      CEN_pmem = 0; WEN_pmem = 1;     // enable read (not write) from PMEM
+      bypass = 0; acc = 1;            // enable accumulation (disable bypass)
+      acc_scan_file = $fscanf(acc_file, "%11b", A_pmem);    // read next address
+      #0.5 clk = 1'b1;
+    end
+
+    // one extra cycle
     #0.5 clk = 1'b0;
-    ofifo_rd = 1;
+    CEN_pmem = 1;
     acc = 1;
     #0.5 clk = 1'b1;
-    //read in one vector per loop it
+    
+    // apply ReLU
     #0.5 clk = 1'b0;
-    ofifo_rd = 0;
-    acc = 0;
+    acc = 0;        // perform ReLU
+    CEN_pmem = 1;   // avoid unnecessary reads
     #0.5 clk = 1'b1;
-    // // flush and relu
-    // #0.5 clk = 1'b0;
-    // acc = 0;
-    // #0.5 clk = 1'b1;
-    // wait + calc
+
+    // buffer
     #0.5 clk = 1'b0; #0.5 clk = 1'b1;
-    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+    
 
     out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
     if (sfp_out == answer)
