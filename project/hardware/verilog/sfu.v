@@ -14,11 +14,10 @@ module sfu #(
 );
     
     // hardware components (2's complement) for each lane (output channel x8)
-    reg signed [psum_bw-1:0] accumulator [0:col-1];
+    reg signed [psum_bw-1:0] accumulator [0:col-1];     // running total, cumulative sum
+    wire signed [psum_bw-1:0] psum_lanes [0:col-1];     // current input from PMEM
+    wire signed [psum_bw-1:0] next_sum [0:col-1];       // accumulator + psum_lanes[i]
 
-    wire signed [psum_bw-1:0] next_sum [0:col-1];
-
-    wire signed [psum_bw-1:0] psum_lanes [0:col-1];
 
     // create, wire 8 lanes for each PSUM
     genvar g;
@@ -59,11 +58,11 @@ module sfu #(
             else begin
                 for (i=0; i < col; i = i +1) begin
                     // ReLU if neg
-                    if (next_sum[i][psum_bw-1] == 1'b1) begin
+                    if (accumulator[i][psum_bw-1] == 1'b1) begin
                         sfp_out[psum_bw*i +: psum_bw] <= {psum_bw{1'b0}};
                     end
                     else begin
-                        sfp_out[psum_bw*i +: psum_bw] <= next_sum[i];
+                        sfp_out[psum_bw*i +: psum_bw] <= accumulator[i];
                     end
 
                     // clear acc for next

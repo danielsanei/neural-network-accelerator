@@ -405,101 +405,127 @@ initial begin
   end  // end of kij loop
 
 
+
+
+  // After OFIFO Read section, before accumulation
+  $display("\n========== PMEM Contents Before Accumulation ==========");
+  for (k=0; k<144; k=k+1) begin
+    #0.5 clk = 1'b0; 
+    CEN_pmem = 0; WEN_pmem = 1; A_pmem = k; bypass = 0;
+    #0.5 clk = 1'b1;
+    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+    $display("PMEM[%3d] = %h", k, core_instance.pmem[k]); // raw PSUM values in memory
+  end
+  $display("=======================================================\n");
+    
+
+
+  // 1613 ns at this point
+
+
   ////////// Accumulation /////////
   out_file = $fopen("out.txt", "r");  
   acc_file = $fopen("acc.txt", "r");
+  if (acc_file == 0) begin
+    $display("ERROR: failed to open acc.txt");
+    $finish;
+  end else begin
+    $display("Opened acc.txt correctly\n");
+  end
 
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 
   out_scan_file = $fscanf(out_file,"%s", answer); 
   out_scan_file = $fscanf(out_file,"%s", answer); 
 
+  acc_scan_file = $fscanf(acc_file,"%s", answer); 
+  acc_scan_file = $fscanf(acc_file,"%s", answer); 
+  acc_scan_file = $fscanf(acc_file,"%s", answer); 
+
   error = 0;
 
 
 
-  // drive ofifo, sfu, alongside answer checking to not lose data
-  $display("############ Verification Start during accumulation #############");
+$display("############ Verification Start during accumulation #############"); 
 
+for (i=0; i<len_onij+1; i=i+1) begin    // 16 iterations
 
-  // for each 16 output position
-  for (i=0; i<len_onij; i=i+1) begin 
+  #0.5 clk = 1'b0; 
+  #0.5 clk = 1'b1; 
 
-    // read + accumulate 9 PSUMs (1 from each kij iteration
-    for (j = 0; j < len_kij; j = j + 1) begin
-      #0.5 clk = 1'b0;
-      CEN_pmem = 0; WEN_pmem = 1;     // enable read (not write) from PMEM
-      bypass = 0; acc = 1;            // enable accumulation (disable bypass)
-      acc_scan_file = $fscanf(acc_file, "%11b", A_pmem);    // read next address
-      #0.5 clk = 1'b1;
-    end
-
-    // one extra cycle
-    #0.5 clk = 1'b0;
-    CEN_pmem = 1;
-    acc = 1;
-    #0.5 clk = 1'b1;
-    
-    // apply ReLU
-    #0.5 clk = 1'b0;
-    acc = 0;        // perform ReLU
-    CEN_pmem = 1;   // avoid unnecessary reads
-    #0.5 clk = 1'b1;
-
-    // buffer
-    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
-    
-
-    out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
+  if (i>0) begin
+    out_scan_file = $fscanf(out_file,"%128b", answer);
     if (sfp_out == answer)
       $display("%2d-th output featuremap Data matched! :D", i); 
     else begin
       $display("%2d-th output featuremap Data ERROR!!", i); 
       $display("sfpout: %128b", sfp_out);
       $display("answer: %128b", answer);
-      $display("sfpout: %d", sfp_out);
-      $display("answer: %d", answer);
       error = 1;
     end
-
-    // if (i>0) begin
-    //  out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
-    //    if (sfp_out == answer)
-    //      $display("%2d-th output featuremap Data matched! :D", i); 
-    //    else begin
-    //      $display("%2d-th output featuremap Data ERROR!!", i); 
-    //      $display("sfpout: %128b", sfp_out);
-    //      $display("answer: %128b", answer);
-    //      error = 1;
-    //    end
-    // end
-   
- 
-    // #0.5 clk = 1'b0; reset = 1;
-    // #0.5 clk = 1'b1;  
-    // #0.5 clk = 1'b0; reset = 0; 
-    // #0.5 clk = 1'b1;  
-
-    // for (j=0; j<len_kij+1; j=j+1) begin 
-
-    //   #0.5 clk = 1'b0;   
-    //     if (j<len_kij) begin CEN_pmem = 0; WEN_pmem = 1; acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); end
-    //                    else  begin CEN_pmem = 1; WEN_pmem = 1; end
-
-    //     if (j>0)  acc = 1;  
-    //   #0.5 clk = 1'b1;   
-    // end
-
-    // #0.5 clk = 1'b0; acc = 0;
-    // #0.5 clk = 1'b1; 
+  end
+  
+  if (i < len_onij) begin
+    $display("\n===== Accumulating Output Position %2d =====", i);
+    $display("Initial state: bypass=%b, acc=%b", bypass, acc);
   end
 
+  #0.5 clk = 1'b0; reset = 1;
+  #0.5 clk = 1'b1;  
+  $display("After reset: accumulator cleared");
+  
+  #0.5 clk = 1'b0; reset = 0; 
+  #0.5 clk = 1'b1;  
 
-  if (error == 0) begin
-  	$display("############ No error detected ##############"); 
-  	$display("########### Project Completed !! ############"); 
+  for (j=0; j<len_kij+1; j=j+1) begin 
 
+    #0.5 clk = 1'b0;   
+      if (j<len_kij) begin 
+        CEN_pmem = 0; 
+        WEN_pmem = 1; 
+        acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); 
+        bypass = 0;
+        $display("  j=%2d: Setting up PMEM read, A_pmem=%3d, bypass=%b", j, A_pmem, bypass);
+      end
+      else begin 
+        CEN_pmem = 1; 
+        WEN_pmem = 1; 
+      end
+
+      if (j>0) acc = 1;  
+      
+    #0.5 clk = 1'b1;
+    
+    // After clock edge, check what happened
+    if (j > 0 && j <= len_kij) begin
+      $display("  j=%2d: After clk, A_pmem_q=%3d, pmem_q=%h, bypass_q=%b, acc_q=%b", 
+               j, A_pmem_q, core_instance.pmem_q, bypass_q, acc_q);
+      $display("        Accumulator[0]=%h, Accumulator[1]=%h", 
+               core_instance.corelet_inst.sfu_inst.accumulator[0],
+               core_instance.corelet_inst.sfu_inst.accumulator[1]);
+    end
   end
+
+  $display("  Setting acc=0 to trigger ReLU...");
+  #0.5 clk = 1'b0; acc = 0;
+  #0.5 clk = 1'b1; 
+
+  #0.5 clk = 1'b0;
+  #0.5 clk = 1'b1;
+  
+  if (i < len_onij) begin
+    $display("  → After ReLU: sfp_out = %h", sfp_out);
+    $display("     sfp_out[15:0]  (ch0) = %h", sfp_out[15:0]);
+    $display("     sfp_out[31:16] (ch1) = %h", sfp_out[31:16]);
+  end
+end
+
+if (error == 0) begin
+  $display("############ No error detected ##############"); 
+  $display("########### Project Completed !! ############"); 
+end
+
+
 
   $fclose(acc_file);
   //////////////////////////////////
