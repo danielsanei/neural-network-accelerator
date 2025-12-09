@@ -9,7 +9,7 @@ module corelet #(
 ) (
     input clk,
     input reset,
-    input [34:0] inst,                  // bundled instructions from testbench
+    input [35:0] inst,                  // bundled instructions from testbench
     input [bw*row-1:0] D_xmem,          // write data from testbench into xmem
     input [psum_bw*col-1:0] D_pmem,     // read PSUMs from PMEM to SFU
     output [psum_bw*col-1:0] sfp_out,   // accumulate + ReLU result
@@ -17,6 +17,7 @@ module corelet #(
 );
 
     // extract individual instructions
+    wire ws_os_mode = inst[35];     // 0 (WS), 1 (OS)
     wire pmem_rd = inst[34];
     wire bypass = inst[34];
     wire acc = inst[33];        // SFU accumulator (1 = continue acc, 0 = ReLU + clear acc)
@@ -37,10 +38,26 @@ module corelet #(
     // connect blocks
     // --------------
 
-    // L0 --> MAC Array
+    // L0 --> MAC Array (WS)
     wire [bw*row-1:0] l0_out;
     wire l0_o_full;
     wire l0_o_ready;
+
+    // IFIFO --> MAC Array (OS)
+    wire [bw*row-1:0] ififo_out;
+    wire ififo_full;
+    wire ififo_ready;
+    wire ififo_valid;
+
+    // choose west input based on WS or OS MUX
+    wire [bw*row-1:0] mac_in_w;
+    assign mac_in_w = ws_os_mode ? ififo_out : l0_out;
+
+    // choose north input based on WS or OS MUX
+    wire [psum_bw*col-1:0] mac_in_n;
+    wire [bw*col-1:0] activations_os;
+    assign activations_os = {col{l0_out[bw-1:0]}};
+    assign mac_in_n = ws_os_mode ? {{(psum_bw-bw){1'b0}}, activations_os} : {psum_bw*col{1'b0}};
 
     // MAC Array --> OFIFO
     wire [psum_bw*col-1:0] mac_out;
@@ -52,7 +69,7 @@ module corelet #(
     wire ofifo_ready;
 
     // -------------------------------------------------------------------------
-    // L0 FIFO
+    // L0 FIFO (used in both WS and OS)
     // -------------------------------------------------------------------------
     //  - create L0 block: buffers vectors from xmem, outputs them to MAC array
     // -------------------------------------------------------------------------
@@ -70,8 +87,28 @@ module corelet #(
         .o_ready (l0_o_ready)
     );
 
+    // -------------------------------------------------------------------------
+    // IFIFO (only for OS mode)
+    // -------------------------------------------------------------------------
+    //  - buffer weights for west inputs
+    // -------------------------------------------------------------------------
+    ififo #(
+        .row (row),
+        .bw (bw)
+    ) ififo_inst (
+        .clk (clk),
+        .reset (reset),
+        .in (D_xmem), 
+        .rd (ififo_rd),
+        .wr ({row{ififo_wr}}),
+        .out (ififo_out),
+        .o_full (ififo_full),
+        .o_ready (ififo_ready),
+        .o_valid (ififo_valid)
+    );
+
     // --------------------------------------------------------------------------
-    // MAC Array
+    // MAC Array (reconfigurable between WS and OS)
     // --------------------------------------------------------------------------
     //  - creates 8x8 array of MAC tiles (PEs), performs convolution computation
     // --------------------------------------------------------------------------
@@ -84,8 +121,8 @@ module corelet #(
         .clk (clk),
         .reset (reset),
         .out_s (mac_out),
-        .in_w (l0_out),
-        .in_n ({psum_bw*col{1'b0}}),
+        .in_w (mac_in_w),       // L0 for WS or IFIFO for OS
+        .in_n (mac_in_n),       // zeros for WS or L0 activations for OS
         .inst_w (inst_w),
         .valid (mac_valid)
     );
