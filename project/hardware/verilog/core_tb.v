@@ -334,8 +334,64 @@ initial begin
     #0.5 clk = 1'b0; execute = 0; l0_rd = 0;
     #0.5 clk = 1'b1;
     /////////////////////////////////////
+    // per kij
+    // nij=16 out_s values generated -> psum memory
 
-
+    // PSUM MEMORY CONTENTS
+    // kij=1
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=2
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=3
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=4
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=5
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=6
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=7
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=8
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
+    // kij=9
+      //   nij=0
+      //   nij=1
+      //   nij=2
+      //   ...
+      //   nij=9
 
   //   ////// OFIFO READ ////////
   //   Ideally, OFIFO should be read while execution, but we have enough ofifo
