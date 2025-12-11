@@ -11,7 +11,7 @@ module core #(
 ) (
     input clk,
     input reset,
-    input [33:0] inst,                  // bundled instructions from testbench
+    input [35:0] inst,                  // bundled instructions from testbench
     input [bw*row-1:0] D_xmem,          // write data from testbench into xmem
     output ofifo_valid,
     output [psum_bw*col-1:0] sfp_out    // accumulate + ReLU result
@@ -47,25 +47,6 @@ module core #(
     );
 
     // --------------------------------------------------------------------------
-    // Corelet
-    // --------------------------------------------------------------------------
-    //  - performs computation: L0 FIFO --> MAC Array --> OFIFO --> SFU
-    // --------------------------------------------------------------------------
-    corelet #(
-        .bw (bw),
-        .psum_bw (psum_bw),
-        .col (col),
-        .row (row)
-    ) corelet_inst(
-        .clk (clk),
-        .reset (reset),
-        .inst (inst),                   // bundled instructions from testbench
-        .D_xmem (xmem_q),               // write data from testbench into xmem
-        .sfp_out (sfp_out),             // accumulate + ReLU result
-        .ofifo_valid (ofifo_valid)
-    );
-
-    // --------------------------------------------------------------------------
     // Output Memory (pmem)
     // --------------------------------------------------------------------------
     //  - store SFU results (PSUMs)
@@ -91,5 +72,26 @@ module core #(
             end
         end
     end
+
+    
+    // --------------------------------------------------------------------------
+    // Corelet
+    // --------------------------------------------------------------------------
+    //  - performs computation: L0 FIFO --> MAC Array --> OFIFO --> SFU
+    // --------------------------------------------------------------------------
+    corelet #(
+        .bw (bw),
+        .psum_bw (psum_bw),
+        .col (col),
+        .row (row)
+    ) corelet_inst(
+        .clk (clk),
+        .reset (reset),
+        .inst (inst),                   // bundled instructions from testbench
+        .D_xmem (xmem_q),               // write data from testbench into xmem
+        .pmem_in(pmem_q),               // option to send pmem rd data back into sfu
+        .sfp_out (sfp_out),             // accumulate + ReLU result
+        .ofifo_valid (ofifo_valid)
+    );
 
 endmodule

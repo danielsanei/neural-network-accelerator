@@ -15,7 +15,7 @@ parameter len_nij = 36;
 reg clk = 0;
 reg reset = 1;
 
-wire [33:0] inst_q; 
+wire [35:0] inst_q; 
 
 reg [1:0]  inst_w_q = 0; 
 reg [bw*row-1:0] D_xmem_q = 0;
@@ -38,11 +38,14 @@ reg l0_rd_q = 0;
 reg l0_wr_q = 0;
 reg execute_q = 0;
 reg load_q = 0;
-reg acc_q = 0;
-reg acc = 0;
+reg [1:0] sfu_mode_q = 0;
+reg [1:0] sfu_mode = 0;
+reg sfu_in_select_q = 0;
+reg sfu_in_select = 0;
 
 reg [1:0]  inst_w; 
 reg [bw*row-1:0] D_xmem;
+reg [psum_bw*col-1:0] acc_out;
 reg [psum_bw*col-1:0] answer;
 
 
@@ -66,7 +69,19 @@ integer captured_data;
 integer t, i, j, k, kij;
 integer error;
 
-assign inst_q[33] = acc_q;
+// pmem stuff
+integer H = $floor($sqrt(len_nij));
+integer K = $floor($sqrt(len_kij));
+integer OUT_H = $floor($sqrt(len_onij));
+
+integer out_idx;
+integer k_idx;
+integer out_row, out_col;
+integer k_row, k_col;
+integer base_addr, offset;
+
+assign inst_q[35] = sfu_in_select_q;
+assign inst_q[34:33] = sfu_mode_q;
 assign inst_q[32] = CEN_pmem_q;
 assign inst_q[31] = WEN_pmem_q;
 assign inst_q[30:20] = A_pmem_q;
@@ -326,7 +341,7 @@ initial begin
   // #0.5 clk = 1'b1;
 
     /////// Execution /////// ~36 cycles
-    for (t=0; t<row+col+len_nij; t=t+1) begin // stream inputs in (pipeline) + row+col (prop across array)
+    for (t=0; t<row+col+(len_nij-col); t=t+1) begin // stream inputs in (pipeline) + row+col (prop across array)
     	#0.5 clk = 1'b0; execute = 1; l0_rd = 1;
 	#0.5 clk = 1'b1;
     end
@@ -397,46 +412,65 @@ initial begin
   //   Ideally, OFIFO should be read while execution, but we have enough ofifo
   //   depth so we can fetch out after execution.
   // read out to and accum in sfu 16 times
-    // wait 1 clk cycle for valid out
-    // #0.5 clk = 1'b0;
-    // acc = 0;
-    // ofifo_rd = 1;
-    // #0.5 clk = 1'b1;
+    // wait 1 clk cycle for valid out and 1 cycle earlier to prime pmem
+    // enable pmem and slurp values through sfu
     #0.5 clk = 1'b0;
-    acc = 0;
-    ofifo_rd = 1;
+    A_pmem = kij*len_nij-1; // use kij as base for address that pmem will use for storage, 9 kij rows by 36 potential psum slots (16 of them are real)
+    sfu_mode = 2'b00; // pass through
+    WEN_pmem = 1;
+    CEN_pmem = 1;
+    ofifo_rd = 1; // 1222c
     #0.5 clk = 1'b1;
     t=0;
-    while (t < len_onij) begin // 2 cycle delay
+    // 1 cycle delay for sfu pass through
+    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+    while (t < len_nij) begin
       #0.5 clk = 1'b0; 
       if (ofifo_valid) begin
-        ofifo_rd = 1; acc = 1;
+        ofifo_rd = 1; sfu_mode = 2'b00;
+
+        //$display("[DEBUG] Time: %0t | t=%0d | Raw OFIFO Data: %h", $time, t, core_instance.corelet_inst.ofifo_out);
+        // pmem slurp up sfu pass through values for accum later
+        CEN_pmem = 0;
+        WEN_pmem = 0;
+        A_pmem = A_pmem + 1;
         t = t + 1;
       end
       else begin
         ofifo_rd = 0;
-        acc = 0;
+        sfu_mode = 2'b00;
       end
       #0.5 clk = 1'b1;
     end
 
-    #0.5 clk = 1'b0; ofifo_rd = 0; acc = 0; #0.5 clk = 1'b1;
+    #0.5 clk = 1'b0; ofifo_rd = 0; sfu_mode = 2'b00; CEN_pmem=1; WEN_pmem=1; #0.5 clk = 1'b1;
+    #0.5 clk=1'b0; #0.5 clk = 1'b1;
+    #0.5 clk=1'b0; #0.5 clk = 1'b1;
+
+    // debug read out of pmem for 36 values
+    // A_pmem = kij * len_nij - 1;
+    // for (i = 0; i < len_nij; i = i + 1) begin
+    //   #0.5 clk = 1'b0;
+    //   CEN_pmem = 0;
+    //   WEN_pmem = 1;
+    //   A_pmem = A_pmem + 1;
+    //   #0.5 clk = 1'b1;
+    // end
+    // // 2 cycle delay for read out
+    // // #0.5 clk = 1'b0; CEN_pmem = 0; WEN_pmem = 1; #0.5 clk = 1'b1;
+    // #0.5 clk = 1'b0; CEN_pmem = 0; WEN_pmem = 1; #0.5 clk = 1'b1;
+    // #0.5 clk = 1'b0; CEN_pmem = 1; WEN_pmem = 1; #0.5 clk = 1'b1;
+
+
     
     /////////////////////////////////////
-
-
-
-
-
-
-
   end  // end of kij loop
 
 
   ////////// Accumulation /////////
   out_file = $fopen("out.txt", "r");  
 
-  acc_file = $fopen("acc.txt", "r");
+  acc_file = $fopen("acc.txt", "w");
 
 
   // Following three lines are to remove the first three comment lines of the file
@@ -450,71 +484,66 @@ initial begin
   // drive ofifo, sfu, alongside answer checking to not lose data
   $display("############ Verification Start during accumulation #############"); 
 
+  // 1. Read 36 values from pmem, choose which are 16 needed to calculate final solution from ea
+  // 2. Send to SFU to accumulate
+  // 3. Store in pmem
+  // 4. Read out from pmem and check against known answer
 
-
-  for (i=0; i<len_onij; i=i+1) begin 
+  sfu_in_select = 1; // send pmem stuff to sfu
+  sfu_mode = 2'b01; // accumulate mode in sfu
+  for (out_idx=0; out_idx<len_onij; out_idx=out_idx+1) begin 
+    // write output value to text file acc.txt to chcek
+    $fdisplay(acc_file, "%b", sfp_out);
     // assert read accumulate
-    wait(ofifo_valid);
+    for (k_idx = 0; k_idx < len_kij; k_idx = k_idx + 1) begin
+      // read out pmem values
+      #0.5 clk = 1'b0; 
+      sfu_mode =  2'b01;
+      CEN_pmem = 0; 
+      WEN_pmem = 1; 
+      // base addr + offset
+      out_row = out_idx / OUT_H;
+      out_col = out_idx % OUT_H;
+      k_row = k_idx / K;
+      k_col = k_idx % K;
+      base_addr = k_idx*len_nij;
+      offset = ((out_row + k_row)*H+(out_col+k_col));
+      A_pmem = base_addr + offset;
+      // $display("nij idx: %d", offset);
+      #0.5 clk = 1'b1;
+    end
+    #0.5 clk = 1'b0; CEN_pmem=1; sfu_mode =  2'b10; #0.5 clk = 1'b1; // cycle delay for accum + rd out for sfu
+  end
+  // two clock after delay for read out
+  $fdisplay(acc_file, "%b", sfp_out);
+  #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+  $fdisplay(acc_file, "%b", sfp_out);
+  #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+  $fdisplay(acc_file, "%b", sfp_out);
 
-    #0.5 clk = 1'b0;
-    ofifo_rd = 1;
-    acc = 1;
-    #0.5 clk = 1'b1;
-    //read in one vector per loop it
-    #0.5 clk = 1'b0;
-    ofifo_rd = 0;
-    acc = 0;
-    #0.5 clk = 1'b1;
-    // // flush and relu
-    // #0.5 clk = 1'b0;
-    // acc = 0;
-    // #0.5 clk = 1'b1;
-    // wait + calc
-    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
-    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
 
+  $fclose(acc_file);
+  acc_file = $fopen("acc.txt", "r");
+
+
+  // Following three lines are to remove the first three comment lines of the file
+  acc_scan_file = $fscanf(acc_file,"%s", acc_out); 
+  acc_scan_file = $fscanf(acc_file,"%s", acc_out); 
+  acc_scan_file = $fscanf(acc_file,"%s", acc_out); 
+
+  for (i = 0; i < len_onij; i = i + 1) begin
     out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
-    if (sfp_out == answer)
+    acc_scan_file = $fscanf(acc_file,"%128b", acc_out); 
+    if (acc_out == answer)
       $display("%2d-th output featuremap Data matched! :D", i); 
     else begin
       $display("%2d-th output featuremap Data ERROR!!", i); 
-      $display("sfpout: %128b", sfp_out);
+      $display("acc_out: %128b", acc_out);
       $display("answer: %128b", answer);
-      $display("sfpout: %d", sfp_out);
+      $display("acc_out: %d", acc_out);
       $display("answer: %d", answer);
       error = 1;
     end
-
-    // if (i>0) begin
-    //  out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
-    //    if (sfp_out == answer)
-    //      $display("%2d-th output featuremap Data matched! :D", i); 
-    //    else begin
-    //      $display("%2d-th output featuremap Data ERROR!!", i); 
-    //      $display("sfpout: %128b", sfp_out);
-    //      $display("answer: %128b", answer);
-    //      error = 1;
-    //    end
-    // end
-   
- 
-    // #0.5 clk = 1'b0; reset = 1;
-    // #0.5 clk = 1'b1;  
-    // #0.5 clk = 1'b0; reset = 0; 
-    // #0.5 clk = 1'b1;  
-
-    // for (j=0; j<len_kij+1; j=j+1) begin 
-
-    //   #0.5 clk = 1'b0;   
-    //     if (j<len_kij) begin CEN_pmem = 0; WEN_pmem = 1; acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); end
-    //                    else  begin CEN_pmem = 1; WEN_pmem = 1; end
-
-    //     if (j>0)  acc = 1;  
-    //   #0.5 clk = 1'b1;   
-    // end
-
-    // #0.5 clk = 1'b0; acc = 0;
-    // #0.5 clk = 1'b1; 
   end
 
 
@@ -546,7 +575,8 @@ always @ (posedge clk) begin
    WEN_pmem_q <= WEN_pmem;
    A_xmem_q   <= A_xmem;
    ofifo_rd_q <= ofifo_rd;
-   acc_q      <= acc;
+   sfu_in_select_q <= sfu_in_select;
+   sfu_mode_q      <= sfu_mode;
    ififo_wr_q <= ififo_wr;
    ififo_rd_q <= ififo_rd;
    l0_rd_q    <= l0_rd;

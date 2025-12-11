@@ -9,14 +9,18 @@ module corelet #(
 ) (
     input clk,
     input reset,
-    input [33:0] inst,                  // bundled instructions from testbench
+    input [35:0] inst,                  // bundled instructions from testbench
     input [bw*row-1:0] D_xmem,          // write data from testbench into xmem
+    input [psum_bw*col-1:0] pmem_in,
     output [psum_bw*col-1:0] sfp_out,   // accumulate + ReLU result
     output ofifo_valid
 );
 
     // extract individual instructions
-    wire acc = inst[33];        // SFU accumulator (1 = continue acc, 0 = ReLU + clear acc)
+    wire sfu_in_sel = inst[35];
+    wire [psum_bw*col-1:0] sfu_in_data = (sfu_in_sel) ? pmem_in : ofifo_out; // @1 input from pmem_q else @0 collect ofifo_out
+
+    wire [1:0] sfu_mode = inst[34:33];        // SFU accumulator (1 = continue acc, 0 = ReLU + clear acc)
     // inst[32:20] : pmem controls (core.v)
     // inst[19:7] : xmem controls (core.v)
     wire ofifo_rd = inst[6];    // read-enable (1 = output next PSUM to SFU)
@@ -108,7 +112,7 @@ module corelet #(
         .o_valid (ofifo_valid)
     );
 
-    // --------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------- 
     // SFU
     // --------------------------------------------------------------------------------
     //  - special function unit: receives PSUMs from OFIFO, performs accumulate + ReLU
@@ -119,8 +123,8 @@ module corelet #(
     ) sfu_inst (
         .clk (clk),
         .reset (reset),
-        .acc (acc),
-        .psum_in (ofifo_out),
+        .mode(sfu_mode),
+        .psum_in (sfu_in_data),
         .sfp_out (sfp_out)
     );
 
