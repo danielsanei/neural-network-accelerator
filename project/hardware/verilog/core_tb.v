@@ -60,6 +60,10 @@ reg [8*30:1] w_file_name;
 wire ofifo_valid;
 wire [col*psum_bw-1:0] sfp_out;
 
+
+
+
+
 integer x_file, x_scan_file ; // file_handler
 integer w_file, w_scan_file ; // file_handler
 integer acc_file, acc_scan_file ; // file_handler
@@ -87,13 +91,24 @@ assign inst_q[1]   = execute_q;
 assign inst_q[0]   = load_q; 
 
 
+
+
+
+
 core  #(.bw(bw), .col(col), .row(row)) core_instance (
 	.clk(clk), 
 	.inst(inst_q),
 	.ofifo_valid(ofifo_valid),
         .D_xmem(D_xmem_q), 
-        .sfp_out(sfp_out), 
+        .sfp_out(sfp_out),
+
+
+
+
+
+
 	.reset(reset)); 
+
 
 
 initial begin 
@@ -262,10 +277,17 @@ initial begin
     /////// Kernel loading to PEs ///////
     // 4bits change at a time with l0
     // skew shift in row+col len_kij loop for skewed inputs
-    for (t=0; t<col+row; t=t+1) begin
-      #0.5 clk = 1'b0; load = 1; l0_rd = 1;
-      #0.5 clk = 1'b1;
-    end
+    
+    //for (t=0; t<col+row; t=t+1) begin
+      for (t=0; t<row; t=t+1) begin
+         #0.5 clk = 1'b0; load = 1; l0_rd = 1;
+         #0.5 clk = 1'b1;
+      end
+
+      for (t=0; t<col; t=t+1) begin
+      	 #0.5 clk = 1'b0; load = 1; l0_rd = 0;
+	 #0.5 clk = 1'b1;
+      end
 
     #0.5 clk = 1'b0; load = 0; l0_rd = 0;
     #0.5 clk = 1'b1;
@@ -368,6 +390,7 @@ initial begin
       #0.5 clk = 1'b0; 
       
       if (ofifo_valid) begin
+<<<<<<< Updated upstream
         ofifo_rd = 1;
 	CEN_pmem = 0;
         WEN_pmem = 0;
@@ -376,6 +399,17 @@ initial begin
 //	nij_idx = nij_idx + 1;
 	
 	A_pmem = kij*16 + t;
+=======
+        ofifo_rd = 1;   // acc = 1;
+        if (t >= 1 && t < len_onij + 1) begin         // skip first value (duplicate)
+          CEN_pmem = 0;   // enable PMEM
+          WEN_pmem = 0;   // enable write on PMEM
+          if ( t > 1 ) A_pmem = A_pmem + 1;
+        end
+        if (ofifo_valid && CEN_pmem == 0) begin
+        $display("[KIJ=%0d, t=%0d] Writing to PMEM[%0d], value=%h", kij, t, A_pmem, core_instance.pmem_din);
+        end
+>>>>>>> Stashed changes
         t = t + 1;
 
 	if (ofifo_valid && (CEN_pmem == 0)) begin
@@ -406,6 +440,27 @@ initial begin
   end  // end of kij loop
 
 
+<<<<<<< Updated upstream
+=======
+
+
+  // After OFIFO Read section, before accumulation
+ $display("\n========== PMEM Contents Before Accumulation ==========");
+  for (k=0; k<144; k=k+1) begin
+    #0.5 clk = 1'b0; 
+    CEN_pmem = 0; WEN_pmem = 1; A_pmem = k; bypass = 0;
+    #0.5 clk = 1'b1;
+    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+    $display("PMEM[%3d] = %h", k, core_instance.pmem_q); // raw PSUM values in memory
+  end
+  $display("=======================================================\n");
+      
+
+
+  // 1613 ns at this point
+
+
+>>>>>>> Stashed changes
   ////////// Accumulation /////////
   out_file = $fopen("out.txt", "r");  
 
@@ -524,7 +579,67 @@ initial begin
 
   end
 
+<<<<<<< Updated upstream
   $fclose(out_file);
+=======
+  #0.5 clk = 1'b0; reset = 1;
+  #0.5 clk = 1'b1;  
+  $display("After reset: accumulator cleared");
+  
+  #0.5 clk = 1'b0; reset = 0; 
+  #0.5 clk = 1'b1;  
+
+  for (j=0; j<len_kij+1; j=j+1) begin 
+
+    #0.5 clk = 1'b0;   
+      if (j<len_kij) begin 
+        CEN_pmem = 0; 
+        WEN_pmem = 1; 
+        acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); 
+        bypass = 0;
+        $display("j=%2d: Setting up PMEM read, A_pmem=%3d, bypass=%b", j, A_pmem, bypass);
+      end
+      else begin 
+        CEN_pmem = 1; 
+        WEN_pmem = 1; 
+      end
+
+      if (j>0) acc = 1;  
+      
+    #0.5 clk = 1'b1;
+    
+    // After clock edge, check what happened
+    if (j > 0 && j <= len_kij) begin
+      $display("  j=%2d: After clk, A_pmem_q=%3d, pmem_q=%h, bypass_q=%b, acc_q=%b", 
+               j, A_pmem_q, core_instance.pmem_q, bypass_q, acc_q);
+      $display("        Accumulator[0]=%h, Accumulator[1]=%h", 
+               core_instance.corelet_inst.sfu_inst.accumulator[0],
+               core_instance.corelet_inst.sfu_inst.accumulator[1]);
+    end
+  end
+
+  $display("  Setting acc=0 to trigger ReLU...");
+  #0.5 clk = 1'b0; acc = 0;
+  #0.5 clk = 1'b1; 
+
+  #0.5 clk = 1'b0;
+  #0.5 clk = 1'b1;
+  
+  if (i < len_onij) begin
+    $display("  → After ReLU: sfp_out = %h", sfp_out);
+    $display("     sfp_out[15:0]  (ch0) = %h", sfp_out[15:0]);
+    $display("     sfp_out[31:16] (ch1) = %h", sfp_out[31:16]);
+  end
+end
+
+if (error == 0) begin
+  $display("############ No error detected ##############"); 
+  $display("########### Project Completed !! ############"); 
+end
+
+
+
+>>>>>>> Stashed changes
   $fclose(acc_file);
   //////////////////////////////////
 

@@ -16,7 +16,12 @@ module corelet #(
     output [psum_bw*col-1:0] ofifo_bus,	//Data to write back to PMEM
 
     output [psum_bw*col-1:0] sfp_out,   // accumulate + ReLU result
-    output ofifo_valid
+    output ofifo_valid,
+
+
+
+
+    output [psum_bw*col-1:0] pmem_din 
 );
 
     // extract individual instructions
@@ -98,6 +103,9 @@ module corelet #(
     //  - creates output FIFO, writes when MAC says outputs are valid
     //  - buffers psum vectors (fed into SFU at controlled pace)
     // -------------------------------------------------------------------------
+   
+   	assign pmem_din = ofifo_out;	
+
     ofifo #(
         .col (col),
         .bw (psum_bw)
@@ -120,9 +128,14 @@ module corelet #(
     // --------------------------------------------------------------------------------
     //  - special function unit: receives PSUMs from OFIFO, performs accumulate + ReLU
     // --------------------------------------------------------------------------------
+<<<<<<< Updated upstream
     
     
 
+=======
+//    wire [psum_bw*col-1:0] sfu_psum_in;
+//    assign sfu_psum_in = bypass ? ofifo_out : D_pmem;
+>>>>>>> Stashed changes
     sfu #(
         .psum_bw (psum_bw),
         .col (col)
@@ -131,7 +144,11 @@ module corelet #(
         .reset (reset),
 	.bypass (bypass),
         .acc (acc),
+<<<<<<< Updated upstream
         .psum_in (pmem_q),
+=======
+        .psum_in (D_pmem),
+>>>>>>> Stashed changes
         .sfp_out (sfp_out)
     );
 

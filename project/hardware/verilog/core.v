@@ -15,6 +15,11 @@ module core #(
     input [bw*row-1:0] D_xmem,          // write data from testbench into xmem
     output ofifo_valid,
     output [psum_bw*col-1:0] sfp_out    // accumulate + ReLU result
+
+
+
+
+    
 );
 
     // extract individual instructions
@@ -51,10 +56,16 @@ module core #(
     // --------------------------------------------------------------------------
     //  - performs computation: L0 FIFO --> MAC Array --> OFIFO --> SFU
     // --------------------------------------------------------------------------
+<<<<<<< Updated upstream
     
     wire [psum_bw*col-1:0] ofifo_bus;
    reg [psum_bw*col-1:0] pmem_q;                   // read data out of pmem
  
+=======
+   
+     reg [psum_bw*col-1:0] pmem_q;                   // read data out of pmem
+     wire [psum_bw*col-1:0] pmem_din;
+>>>>>>> Stashed changes
     
     corelet #(
         .bw (bw),
@@ -66,13 +77,27 @@ module core #(
         .reset (reset),
         .inst (inst),                   // bundled instructions from testbench
         .D_xmem (xmem_q),               // write data from testbench into xmem
+<<<<<<< Updated upstream
        
 	.pmem_q (pmem_q),
  	.ofifo_bus (ofifo_bus),	
 
 	.sfp_out (sfp_out),             // accumulate + ReLU result
         .ofifo_valid (ofifo_valid)
+=======
+        .D_pmem (pmem_q),               // read PSUMs from PMEM to SFU
+        .sfp_out (sfp_out),             // accumulate + ReLU result
+        .ofifo_valid (ofifo_valid),
+	.pmem_din (pmem_din)
+>>>>>>> Stashed changes
     );
+
+
+
+   
+
+
+
 
     // --------------------------------------------------------------------------
     // Output Memory (pmem)
@@ -83,7 +108,11 @@ module core #(
 
     // output SRAM model
     reg [psum_bw*col-1:0] pmem [0:PMEM_DEPTH-1];    // storage array (each entry holds 8-channel output vector)
+<<<<<<< Updated upstream
     
+=======
+   
+>>>>>>> Stashed changes
     // synchronous read/write to pmem
     always @(posedge clk) begin
         // if pmem enabled this cycle
@@ -91,8 +120,14 @@ module core #(
             // if write enabled this cycle
             if (!WEN_pmem) begin
                 // store current SFU results
+<<<<<<< Updated upstream
                 pmem[A_pmem] <= ofifo_bus;
             end
+=======
+//                pmem[A_pmem] <= sfp_out;
+		pmem[A_pmem] <= pmem_din;
+	    end
+>>>>>>> Stashed changes
             // otherwise, read enabled this cycle
             else begin
                 pmem_q <= pmem[A_pmem];
