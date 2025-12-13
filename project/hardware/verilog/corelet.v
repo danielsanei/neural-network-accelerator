@@ -25,8 +25,6 @@ module corelet #(
     wire pmem_rd = inst[34];
     wire bypass = inst[34];
     wire acc = inst[33];        // SFU accumulator (1 = continue acc, 0 = ReLU + clear acc)
-    // inst[32:20] : pmem controls (core.v)
-    // inst[19:7] : xmem controls (core.v)
     wire ofifo_rd = inst[6];    // read-enable (1 = output next PSUM to SFU)
     wire ififo_wr = inst[5];
     wire ififo_rd = inst[4];
@@ -124,8 +122,7 @@ module corelet #(
     // --------------------------------------------------------------------------------
     //  - special function unit: receives PSUMs from OFIFO, performs accumulate + ReLU
     // --------------------------------------------------------------------------------
-//    wire [psum_bw*col-1:0] sfu_psum_in;
-//    assign sfu_psum_in = bypass ? ofifo_out : D_pmem;
+
     sfu #(
         .psum_bw (psum_bw),
         .col (col)

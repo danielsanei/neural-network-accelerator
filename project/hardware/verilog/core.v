@@ -100,7 +100,6 @@ module core #(
             // if write enabled this cycle
             if (!WEN_pmem && (ofifo_valid == 1)) begin
                 // store current SFU results
-//                pmem[A_pmem] <= sfp_out;
 		pmem[A_pmem] <= pmem_din;
 	    end
             // otherwise, read enabled this cycle
