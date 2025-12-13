@@ -377,65 +377,76 @@ initial begin
     // acc = 0;
     // ofifo_rd = 1;
     // #0.5 clk = 1'b1;
-    $display("\n===== PMEM Storage =====");
-    #0.5 clk = 1'b0;
-    acc = 0;                  // don't accumulate yet
-    ofifo_rd = 1;             // read next PSUM, output to psum_in for SFU
-    // CEN_pmem = 0;             // enable PMEM
-    // WEN_pmem = 0;             // enable write on PMEM
-    A_pmem = kij * len_onij;  // get starting address (i.e. kij=0 -> 0, kij=1 -> 16, kij=2 -> 32, etc.)
-    bypass = 1;               // avoid acc + ReLU, just store raw PSUM result
-    #0.5 clk = 1'b1;
-    #0.5 clk = 1'b0;          // extra cycle to avoid reading in invalid or stale sfp_out value
-    #0.5 clk = 1'b1;
-    t=0;
-    // skip first value (duplicate)
-    while (t < len_onij + 1) begin // 2 cycle delay
-      #0.5 clk = 1'b0; 
-      if (ofifo_valid) begin
-        ofifo_rd = 1;   // acc = 1;
-        if (t >= 1 && t < len_onij + 1) begin         // skip first value (duplicate)
-          CEN_pmem = 0;   // enable PMEM
-          WEN_pmem = 0;   // enable write on PMEM
-          if ( t > 1 ) A_pmem = A_pmem + 1;
-        end
-        if (ofifo_valid && CEN_pmem == 0) begin
-        $display("[KIJ=%0d, t=%0d] Writing to PMEM[%0d], value=%h", kij, t, A_pmem, core_instance.pmem_din);
-        end
-        t = t + 1;
-      end
-      else begin
-        ofifo_rd = 0;
-        CEN_pmem = 1;
-        WEN_pmem = 1;
-        // acc = 0;
-      end
-      #0.5 clk = 1'b1;
-    end
+   $display("\n===== PMEM Storage =====");
+	#0.5 clk = 1'b0;
+	acc = 0;              	// don't accumulate yet
+	ofifo_rd = 1;         	// read next PSUM, output to psum_in for SFU
+	// CEN_pmem = 0;         	// enable PMEM
+	// WEN_pmem = 0;         	// enable write on PMEM
+//	A_pmem = kij * len_nij;  // get starting address (i.e. kij=0 -> 0, kij=1 -> 16, kij=2 -> 32, etc.)
 
-    #0.5 clk = 1'b0;
-    ofifo_rd = 0;
-    acc = 0;
-    CEN_pmem = 1;     // disable PMEM
-    WEN_pmem = 1;     // disable write on PMEM
-    bypass = 0;       // remove bypass signal
-    #0.5 clk = 1'b1;
+//	A_pmem = 0;
+	bypass = 1;           	// avoid acc + ReLU, just store raw PSUM result
+	CEN_pmem = 0;
+	WEN_pmem = 0;
 
-    /////////////////////////////////////
+	t=0;
+
+	#0.5 clk = 1'b1;
+//	#0.5 clk = 1'b0;      	// extra cycle to avoid reading in invalid or stale sfp_out value
+//	A_pmem = kij * 36;
+//	#0.5 clk = 1'b1;
+	// skip first value (duplicate)
+	while (t < len_nij) begin // 2 cycle delay
+		#0.5 clk = 1'b0;
+    		if (ofifo_valid) begin
+ 		//   	ofifo_rd = 1;   // acc = 1;
+    			if (t >= 0 && t < len_nij) begin     	// skip first value (duplicate)
+//      				CEN_pmem = 0;   // enable PMEM
+//      				WEN_pmem = 0;   // enable write on PMEM
+//     				ofifo_rd = 1;
+      				if ( t >= 0 ) begin
+ 			//  	 	A_pmem = A_pmem + 1;
+   	 				A_pmem = (kij * 36) + t;
+      				end
+    			end
+    			if (ofifo_valid && CEN_pmem == 0) begin
+//    				$display("[KIJ=%0d, t=%0d] Writing to PMEM[%0d], value=%h", kij, t, A_pmem, core_instance.pmem_din);
+    			end
+    			t = t + 1;
+  		end
+  		else begin
+    			ofifo_rd = 0;
+    			CEN_pmem = 1;
+    			WEN_pmem = 1;
+    			// acc = 0;
+  		end
+  		#0.5 clk = 1'b1;
+	end
+
+	#0.5 clk = 1'b0;
+	ofifo_rd = 0;
+	acc = 0;
+	CEN_pmem = 1; 	// disable PMEM
+	WEN_pmem = 1; 	// disable write on PMEM
+	bypass = 0;   	// remove bypass signal
+	#0.5 clk = 1'b1;
+
+	/////////////////////////////////////
 
   end  // end of kij loop
-
-
-
+ 
 
   // After OFIFO Read section, before accumulation
  $display("\n========== PMEM Contents Before Accumulation ==========");
-  for (k=0; k<144; k=k+1) begin
+  for (k=0; k<324; k=k+1) begin
     #0.5 clk = 1'b0; 
-    CEN_pmem = 0; WEN_pmem = 1; A_pmem = k; bypass = 0;
+    CEN_pmem = 0; A_pmem = k;
     #0.5 clk = 1'b1;
     #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+    #0.5 clk = 1'b0;
     $display("PMEM[%3d] = %h", k, core_instance.pmem_q); // raw PSUM values in memory
+    #0.5 clk = 1'b1;
   end
   $display("=======================================================\n");
       
@@ -498,27 +509,33 @@ for (i=0; i<len_onij+1; i=i+1) begin    // 16 iterations
   #0.5 clk = 1'b0; reset = 0; 
   #0.5 clk = 1'b1;  
 
-  for (j=0; j<len_kij+1; j=j+1) begin 
+  for (j=0; j<len_kij; j=j+1) begin 
+acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); 
 
     #0.5 clk = 1'b0;   
       if (j<len_kij) begin 
         CEN_pmem = 0; 
         WEN_pmem = 1; 
-        acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); 
-        bypass = 0;
-        $display("j=%2d: Setting up PMEM read, A_pmem=%3d, bypass=%b", j, A_pmem, bypass);
+                bypass = 0;
+        $display("j=%2d: Setting up PMEM read, A_pmem=%3d, bypass=%b", j, A_pmem_q, bypass);
       end
       else begin 
         CEN_pmem = 1; 
         WEN_pmem = 1; 
       end
 
-      if (j>0) acc = 1;  
-      
+      if (j>=0) begin
+	 acc = 1;  
+      end
     #0.5 clk = 1'b1;
-    
+
+      #0.5 clk = 1'b0; 
+      #0.5 clk = 1'b1; 
+
     // After clock edge, check what happened
-    if (j > 0 && j <= len_kij) begin
+    if (j >= 0 && j <= len_kij) begin
+//      #0.5 clk = 1'b0; 
+//      #0.5 clk = 1'b1; 
       $display("  j=%2d: After clk, A_pmem_q=%3d, pmem_q=%h, bypass_q=%b, acc_q=%b", 
                j, A_pmem_q, core_instance.pmem_q, bypass_q, acc_q);
       $display("        Accumulator[0]=%h, Accumulator[1]=%h", 
@@ -535,7 +552,7 @@ for (i=0; i<len_onij+1; i=i+1) begin    // 16 iterations
   #0.5 clk = 1'b1;
   
   if (i < len_onij) begin
-    $display("  → After ReLU: sfp_out = %h", sfp_out);
+    $display(" After ReLU: sfp_out = %h", sfp_out);
     $display("     sfp_out[15:0]  (ch0) = %h", sfp_out[15:0]);
     $display("     sfp_out[31:16] (ch1) = %h", sfp_out[31:16]);
   end
