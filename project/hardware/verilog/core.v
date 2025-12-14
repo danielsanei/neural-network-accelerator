@@ -31,13 +31,20 @@ module core #(
     assign CEN_pmem = inst[32];
     assign WEN_pmem = inst[31];
 
+
+    // output SRAM model
+    reg [psum_bw*col-1:0] pmem [0:PMEM_DEPTH-1];    // storage array (each entry holds 8-channel output vector)
+    reg [psum_bw*col-1:0] pmem_q;                   // read data out of pmem
+
+    wire [bw*row-1:0] xmem_q;   // next activation/weight out of input memory
+	
+
     // --------------------------------------------------------------------------
     // Input Memory (xmem)
     // --------------------------------------------------------------------------
     //  - store activations/weights
     // --------------------------------------------------------------------------
-    wire [bw*row-1:0] xmem_q;   // next activation/weight out of input memory
-    sram_32b_w2048 sram_inst(
+       sram_32b_w2048 sram_inst(
         .CLK (clk),
         .WEN (WEN_xmem),        // write enable
         .CEN (CEN_xmem),        // chip enable
@@ -73,10 +80,7 @@ module core #(
     // --------------------------------------------------------------------------
     localparam PMEM_DEPTH = (1 << addr_width);      // # of entries in pmem
 
-    // output SRAM model
-    reg [psum_bw*col-1:0] pmem [0:PMEM_DEPTH-1];    // storage array (each entry holds 8-channel output vector)
-    reg [psum_bw*col-1:0] pmem_q;                   // read data out of pmem
-
+   
     // synchronous read/write to pmem
     always @(posedge clk) begin
         // if pmem enabled this cycle
