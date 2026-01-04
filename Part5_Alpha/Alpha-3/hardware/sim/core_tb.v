@@ -1,0 +1,593 @@
+// Created by prof. Mingu Kang @VVIP Lab in UCSD ECE department
+// Please do not spread this code without permission 
+`timescale 1ns/1ps
+
+module core_tb;
+
+parameter bw = 4;
+parameter psum_bw = 16;
+parameter len_kij = 9;
+parameter len_onij = 16;
+parameter col = 8;
+parameter row = 8;
+parameter len_nij = 36;
+
+// pruning param
+parameter PRUNING_MODE = 0;  // 0: no prune 1: unstructured 2: structured
+parameter SPARSITY = 50;     // For unstructured, % of weights to zero (0-100)
+parameter PRUNE_LAYER = 3;   // For structured which kij layer to zero (0-8)
+
+// pruning save
+reg [31:0] pruned_wt;
+integer zero_ct;
+integer nibble_idx;
+integer rando_val;
+
+reg clk = 0;
+reg reset = 1;
+
+wire [34:0] inst_q; 
+
+reg [1:0]  inst_w_q = 0; 
+reg [bw*row-1:0] D_xmem_q = 0;
+reg CEN_xmem = 1;
+reg WEN_xmem = 1;
+reg [10:0] A_xmem = 0;
+reg CEN_xmem_q = 1;
+reg WEN_xmem_q = 1;
+reg [10:0] A_xmem_q = 0;
+reg CEN_pmem = 1;
+reg WEN_pmem = 1;
+reg [10:0] A_pmem = 0;
+reg CEN_pmem_q = 1;
+reg WEN_pmem_q = 1;
+reg [10:0] A_pmem_q = 0;
+reg ofifo_rd_q = 0;
+reg ififo_wr_q = 0;
+reg ififo_rd_q = 0;
+reg l0_rd_q = 0;
+reg l0_wr_q = 0;
+reg execute_q = 0;
+reg load_q = 0;
+reg acc_q = 0;
+reg acc = 0;
+reg bypass = 0;
+reg bypass_q = 0;
+
+reg [1:0]  inst_w; 
+reg [bw*row-1:0] D_xmem;
+reg [psum_bw*col-1:0] answer;
+
+
+reg ofifo_rd;
+reg ififo_wr;
+reg ififo_rd;
+reg l0_rd;
+reg l0_wr;
+reg execute;
+reg load;
+reg [8*30:1] stringvar;
+reg [8*50:1] w_file_name;
+wire ofifo_valid;
+wire [col*psum_bw-1:0] sfp_out;
+
+
+
+
+
+integer x_file, x_scan_file ; // file_handler
+integer w_file, w_scan_file ; // file_handler
+integer acc_file, acc_scan_file ; // file_handler
+integer out_file, out_scan_file ; // file_handler
+integer captured_data; 
+integer t, i, j, k, kij;
+integer error;
+
+assign inst_q[34] = bypass_q;
+assign inst_q[33] = acc_q;
+assign inst_q[32] = CEN_pmem_q;
+assign inst_q[31] = WEN_pmem_q;
+assign inst_q[30:20] = A_pmem_q;
+assign inst_q[19]   = CEN_xmem_q;
+assign inst_q[18]   = WEN_xmem_q;
+assign inst_q[17:7] = A_xmem_q;
+assign inst_q[6]   = ofifo_rd_q;
+assign inst_q[5]   = ififo_wr_q;
+assign inst_q[4]   = ififo_rd_q;
+assign inst_q[3]   = l0_rd_q;
+assign inst_q[2]   = l0_wr_q;
+assign inst_q[1]   = execute_q; 
+assign inst_q[0]   = load_q; 
+
+
+
+
+
+
+core  #(.bw(bw), .col(col), .row(row)) core_instance (
+	.clk(clk), 
+	.inst(inst_q),
+	.ofifo_valid(ofifo_valid),
+        .D_xmem(D_xmem_q), 
+        .sfp_out(sfp_out),
+	.reset(reset)); 
+
+
+
+initial begin 
+
+  inst_w   = 0; 
+  D_xmem   = 0;
+  CEN_xmem = 1;
+  WEN_xmem = 1;
+  A_xmem   = 0;
+  ofifo_rd = 0;
+  ififo_wr = 0;
+  ififo_rd = 0;
+  l0_rd    = 0;
+  l0_wr    = 0;
+  execute  = 0;
+  load     = 0;
+
+  $dumpfile("core_tb.vcd");
+  $dumpvars(0,core_tb);
+
+  x_file = $fopen("../datafiles/activation_tile0.txt", "r");
+  if (x_file == 0) begin
+    $display("ERROR: failed to open file: ../datafiles/activation_tile0.txt");
+    $finish;
+  end
+  // Following three lines are to remove the first three comment lines of the file
+  x_scan_file = $fscanf(x_file,"%s", captured_data);
+  x_scan_file = $fscanf(x_file,"%s", captured_data);
+  x_scan_file = $fscanf(x_file,"%s", captured_data);
+
+  //////// Reset /////////
+  #0.5 clk = 1'b0;   reset = 1;
+  #0.5 clk = 1'b1; 
+
+  for (i=0; i<10 ; i=i+1) begin
+    #0.5 clk = 1'b0;
+    #0.5 clk = 1'b1;  
+  end
+
+  #0.5 clk = 1'b0;   reset = 0;
+  #0.5 clk = 1'b1; 
+
+  #0.5 clk = 1'b0;   
+  #0.5 clk = 1'b1;   
+  /////////////////////////
+
+  /////// Activation data writing to memory ///////
+  for (t=0; t<len_nij; t=t+1) begin  
+    #0.5 clk = 1'b0;  x_scan_file = $fscanf(x_file,"%32b", D_xmem); WEN_xmem = 0; CEN_xmem = 0; if (t>0) A_xmem = A_xmem + 1;
+    #0.5 clk = 1'b1;   
+  end
+
+  #0.5 clk = 1'b0;  WEN_xmem = 1;  CEN_xmem = 1; A_xmem = 0;
+  #0.5 clk = 1'b1; 
+
+  $fclose(x_file);
+  /////////////////////////////////////////////////
+
+
+  for (kij=0; kij<9; kij=kij+1) begin  // kij loop
+
+    case(kij)
+     0: w_file_name = "../datafiles/weight_itile0_otile0_kij0.txt";
+     1: w_file_name = "../datafiles/weight_itile0_otile0_kij1.txt";
+     2: w_file_name = "../datafiles/weight_itile0_otile0_kij2.txt";
+     3: w_file_name = "../datafiles/weight_itile0_otile0_kij3.txt";
+     4: w_file_name = "../datafiles/weight_itile0_otile0_kij4.txt";
+     5: w_file_name = "../datafiles/weight_itile0_otile0_kij5.txt";
+     6: w_file_name = "../datafiles/weight_itile0_otile0_kij6.txt";
+     7: w_file_name = "../datafiles/weight_itile0_otile0_kij7.txt";
+     8: w_file_name = "../datafiles/weight_itile0_otile0_kij8.txt";
+    endcase
+    
+
+    w_file = $fopen(w_file_name, "r");
+    if (w_file == 0) begin
+      $display("ERROR: failed to open file: %s", w_file_name);
+      $finish;
+    end
+    // Following three lines are to remove the first three comment lines of the file
+    w_scan_file = $fscanf(w_file,"%s", captured_data);
+    w_scan_file = $fscanf(w_file,"%s", captured_data);
+    w_scan_file = $fscanf(w_file,"%s", captured_data);
+
+    #0.5 clk = 1'b0;   reset = 1;
+    #0.5 clk = 1'b1; 
+
+    for (i=0; i<10 ; i=i+1) begin
+      #0.5 clk = 1'b0;
+      #0.5 clk = 1'b1;  
+    end
+
+    #0.5 clk = 1'b0;   reset = 0;
+    #0.5 clk = 1'b1; 
+
+    #0.5 clk = 1'b0;   
+    #0.5 clk = 1'b1;   
+
+
+
+
+
+    /////// Kernel data writing to memory ///////
+
+    A_xmem = 11'b10000000000;
+
+
+    if (PRUNING_MODE == 1) begin
+        $display("kij=%d: Unstructured pruning, %d sparsity", kij, SPARSITY);
+    end
+    else if (PRUNING_MODE == 2 && kij == PRUNE_LAYER) begin
+        $display("kij=%d: Structured pruning", kij);
+    end
+    else if (PRUNING_MODE == 2) begin
+        $display("kij=%d: No pruning, structured for layer %d", kij, PRUNE_LAYER);
+    end
+    else begin
+        $display("kij=%0d: No pruning done", kij);
+    end
+
+	zero_ct = 0; 
+
+    for (t=0; t<col; t=t+1) begin  
+      #0.5 clk = 1'b0;
+      
+      w_scan_file = $fscanf(w_file,"%32b", D_xmem);
+      
+      pruned_wt = D_xmem; 
+      
+      case (PRUNING_MODE)
+        
+        // Mode 1: Unstructured
+        1: begin
+          for (nibble_idx = 0; nibble_idx < 8; nibble_idx = nibble_idx + 1) begin
+            rando_val = $random % 100;
+            if (rando_val < 0) begin
+              rando_val = -rando_val; 
+            end
+
+            if (rando_val < SPARSITY) begin
+              pruned_wt[nibble_idx*4 +: 4] = 4'b0000;
+              zero_ct = zero_ct + 1;
+            end
+          end
+        end
+        
+        // Mode 2: Structured
+        2: begin
+          if (kij == PRUNE_LAYER) begin
+            pruned_wt = 32'b0;
+            zero_ct = zero_ct + 8; 
+          end
+        end
+        
+        // Mode 0: No pruning done
+        default: begin
+          pruned_wt = D_xmem;
+        end
+        
+      endcase
+      
+      D_xmem = pruned_wt;
+      WEN_xmem = 0;
+      CEN_xmem = 0;
+      
+      if (t>0) begin
+        A_xmem = A_xmem + 1;
+      end      
+      
+      #0.5 clk = 1'b1;  
+    end
+
+    if (PRUNING_MODE != 0) begin
+      $display("kij=%0d: Zeroed %0d out of %0d weights (%.1f%%)", kij, zero_ct, col*8, (zero_ct*100.0)/(col*8));
+    end
+
+    #0.5 clk = 1'b0;  WEN_xmem = 1;  CEN_xmem = 1; A_xmem = 0;
+    #0.5 clk = 1'b1; 
+    /////////////////////////////////////
+
+ 
+    /////// Kernel data writing to L0 ///////
+    // prime SRAM and delay by a cycle, wr first addr to sram
+    #0.5 clk = 1'b0;
+    CEN_xmem = 0; // turn on SRAM
+    WEN_xmem = 1; // read out mode
+    A_xmem = 11'b10000000000;
+    l0_wr = 0;
+    #0.5 clk = 1'b1; 
+
+    for (t=0; t<col; t=t+1) begin
+      #0.5 clk = 1'b0;
+      // Capture data from prev cycle req -> SRAM has 1 cycle delay
+      l0_wr = 1;
+      // prep addrs
+      if (t<col-1) begin
+        A_xmem = A_xmem + 1;
+      end 
+
+      #0.5 clk = 1'b1;
+    end
+
+
+    // full l0 off
+    #0.5 clk = 1'b0;
+    CEN_xmem = 1;
+    l0_wr = 0;
+    #0.5 clk = 1'b1;
+
+       /////////////////////////////////////
+
+
+
+    /////// Kernel loading to PEs ///////
+    // 4bits change at a time with l0
+    // skew shift in row+col len_kij loop for skewed inputs
+    
+    
+      for (t=0; t<row; t=t+1) begin
+         #0.5 clk = 1'b0; load = 1; l0_rd = 1;
+         #0.5 clk = 1'b1;
+      end
+
+      for (t=0; t<col; t=t+1) begin
+      	 #0.5 clk = 1'b0; load = 1; l0_rd = 0;
+	 #0.5 clk = 1'b1;
+      end
+
+    #0.5 clk = 1'b0; load = 0; l0_rd = 0;
+    #0.5 clk = 1'b1;
+    /////////////////////////////////////
+  
+
+
+    ////// provide some intermission to clear up the kernel loading ///
+    #0.5 clk = 1'b0;  load = 0; l0_rd = 0;
+    #0.5 clk = 1'b1;  
+  
+
+    for (i=0; i<10 ; i=i+1) begin
+      #0.5 clk = 1'b0;
+      #0.5 clk = 1'b1;  
+    end
+    /////////////////////////////////////
+
+
+
+    /////// Activation data writing to L0 ///////
+    // turn on SRAM and establish first first sram addr to send to l0
+    #0.5 clk = 1'b0;
+    CEN_xmem = 0;
+    WEN_xmem = 1;
+    A_xmem = 11'b00000000000;
+    l0_wr = 0;
+    #0.5 clk = 1'b1;
+
+    // loop addrs sent to l0
+    for (t=0; t < len_nij; t=t+1) begin
+      #0.5 clk = 1'b0;
+      // establish l0
+      l0_wr = 1;
+      // next addr
+      if (t < len_nij - 1) begin
+        A_xmem = A_xmem + 1;
+      end else begin
+        CEN_xmem = 1;
+      end
+      #0.5 clk = 1'b1;
+    end
+
+    // turn off SRAM
+    #0.5 clk = 1'b0;
+    l0_wr = 0;
+    CEN_xmem = 1;
+    WEN_xmem = 1;
+    #0.5 clk = 1'b1;
+
+
+    /////// Execution /////// ~36 cycles
+    for (t=0; t<row+col+len_nij; t=t+1) begin // stream inputs in (pipeline) + row+col (prop across array)
+    	#0.5 clk = 1'b0; execute = 1; l0_rd = 1;
+	    #0.5 clk = 1'b1;
+    end
+
+    #0.5 clk = 1'b0; execute = 0; l0_rd = 0;
+    #0.5 clk = 1'b1;
+    /////////////////////////////////////
+
+
+
+
+  	#0.5 clk = 1'b0;
+	acc = 0;              	// don't accumulate yet
+	ofifo_rd = 1;         	// read next PSUM, output to psum_in for SFU
+	bypass = 1;           	// avoid acc + ReLU, just store raw PSUM result
+	CEN_pmem = 0;
+	WEN_pmem = 0;
+
+	t=0;
+
+	#0.5 clk = 1'b1;
+
+	while (t < len_nij) begin
+		#0.5 clk = 1'b0;
+    		if (ofifo_valid) begin
+ 		
+    			if (t >= 0 && t < len_nij) begin     
+
+      				if ( t >= 0 ) begin
+   	 				A_pmem = (kij * 36) + t;
+      				end
+    			end
+    			t = t + 1;
+  		end
+  		else begin
+    			ofifo_rd = 0;
+    			CEN_pmem = 1;
+    			WEN_pmem = 1;
+  		end
+  		#0.5 clk = 1'b1;
+	end
+
+	#0.5 clk = 1'b0;
+	ofifo_rd = 0;
+	acc = 0;
+	CEN_pmem = 1; 	// disable PMEM
+	WEN_pmem = 1; 	// disable write on PMEM
+	bypass = 0;   	// remove bypass signal
+	#0.5 clk = 1'b1;
+
+	/////////////////////////////////////
+
+  end  // end of kij loop
+ 
+
+  // After OFIFO Read section, PMEM contents before accumulation
+  for (k=0; k<324; k=k+1) begin
+    #0.5 clk = 1'b0; 
+    CEN_pmem = 0; A_pmem = k;
+    #0.5 clk = 1'b1;
+    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+    #0.5 clk = 1'b0; #0.5 clk = 1'b1;
+  end
+      
+
+
+
+
+
+  ////////// Accumulation /////////
+  out_file = $fopen("../datafiles/out.txt", "r");  
+  acc_file = $fopen("../datafiles/acc.txt", "r");
+  if (acc_file == 0) begin
+    $display("ERROR: failed to open acc.txt");
+    $finish;
+  end else begin
+    $display("Opened acc.txt correctly\n");
+  end
+
+  // Following three lines are to remove the first three comment lines of the file
+  out_scan_file = $fscanf(out_file,"%s", answer); 
+  out_scan_file = $fscanf(out_file,"%s", answer); 
+  out_scan_file = $fscanf(out_file,"%s", answer); 
+
+  acc_scan_file = $fscanf(acc_file,"%s", answer); 
+  acc_scan_file = $fscanf(acc_file,"%s", answer); 
+  acc_scan_file = $fscanf(acc_file,"%s", answer); 
+
+  error = 0;
+
+
+
+$display("############ Verification Start during accumulation #############"); 
+
+for (i=0; i<len_onij+1; i=i+1) begin 
+
+  #0.5 clk = 1'b0; 
+  #0.5 clk = 1'b1; 
+
+  if (i>0) begin
+    out_scan_file = $fscanf(out_file,"%128b", answer);
+    $display("Using Part 1 Vanilla weights for comparison");
+    $display("If pruning mode activated, output will have errors due to the zeroed weights.");
+    if (sfp_out == answer)
+      $display("%2d-th output featuremap Data matched! :D", i); 
+    else begin
+      $display("%2d-th output featuremap Data ERROR!!", i); 
+      $display("sfpout: %0d", sfp_out);
+      $display("answer: %0d", answer);
+      error = 1;
+    end
+  end
+  
+ 
+  #0.5 clk = 1'b0; reset = 1;
+  #0.5 clk = 1'b1;  
+  
+  #0.5 clk = 1'b0; reset = 0; 
+  #0.5 clk = 1'b1;  
+
+  for (j=0; j<len_kij; j=j+1) begin 
+      acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); 
+
+      #0.5 clk = 1'b0;   
+      if (j<len_kij) begin 
+        CEN_pmem = 0; 
+        WEN_pmem = 1; 
+        bypass = 0;
+   
+      end
+      else begin 
+        CEN_pmem = 1; 
+        WEN_pmem = 1; 
+      end
+
+      if (j>=0) begin
+	 acc = 1;  
+      end
+    #0.5 clk = 1'b1;
+
+  end
+
+  
+  #0.5 clk = 1'b0; acc = 0;
+  #0.5 clk = 1'b1; 
+
+  #0.5 clk = 1'b0;
+  #0.5 clk = 1'b1;
+  
+ end
+
+if (error == 0) begin
+  $display("############ No error detected ##############"); 
+  $display("########### Project Completed !! ############"); 
+end
+
+
+
+  $fclose(acc_file);
+  //////////////////////////////////
+
+  for (t=0; t<10; t=t+1) begin  
+    #0.5 clk = 1'b0;  
+    #0.5 clk = 1'b1;  
+  end
+
+  #10 $finish;
+
+end
+
+always @ (posedge clk) begin
+   inst_w_q   <= inst_w; 
+   D_xmem_q   <= D_xmem;
+   CEN_xmem_q <= CEN_xmem;
+   WEN_xmem_q <= WEN_xmem;
+   A_pmem_q   <= A_pmem;
+   CEN_pmem_q <= CEN_pmem;
+   WEN_pmem_q <= WEN_pmem;
+   A_xmem_q   <= A_xmem;
+   ofifo_rd_q <= ofifo_rd;
+   acc_q      <= acc;
+   ififo_wr_q <= ififo_wr;
+   ififo_rd_q <= ififo_rd;
+   l0_rd_q    <= l0_rd;
+   l0_wr_q    <= l0_wr ;
+   execute_q  <= execute;
+   load_q     <= load;
+   bypass_q   <= bypass;
+end
+
+
+
+
+
+endmodule
+
+
+
+
